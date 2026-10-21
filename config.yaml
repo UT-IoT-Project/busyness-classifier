@@ -1,0 +1,29 @@
+# Configuracion unica para entrenamiento e inferencia.
+
+api:
+  base_url: "http://IP-DE-LA-PI:8080"   # por completar
+  building: "zilverling"                 # por completar
+  room: "Z2402"                          # por completar
+
+# Nombres exactos del contrato de la API (sensibles a mayusculas)
+sensors:
+  - PIR
+  - pressure
+  - hum
+  - temp
+  - co2equivalent
+  - voc
+  - airresistance
+  - mic_vol
+  - busy_level
+
+windows:
+  size_minutes: 3     # ventana de 1 a 5 minutos (por decidir)
+  step_seconds: 30    # cada cuanto se calcula una ventana nueva
+
+cleaning:
+  max_gap_seconds: null   # limite de "hueco corto" (por decidir)
+  smoothing_minutes: null # tamano de la media movil (por decidir)
+
+model:
+  path: "models/model.joblib"

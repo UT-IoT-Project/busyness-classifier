@@ -1,0 +1,12 @@
+# Entorno de Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Datos y modelos: no se suben al repositorio
+data/raw/*
+data/labels/*
+data/processed/*
+models/*
+!**/.gitkeep
