@@ -21,9 +21,39 @@ windows:
   size_minutes: 3     # ventana de 1 a 5 minutos (por decidir)
   step_seconds: 30    # cada cuanto se calcula una ventana nueva
 
-cleaning:
-  max_gap_seconds: null   # limite de "hueco corto" (por decidir)
-  smoothing_minutes: null # tamano de la media movil (por decidir)
-
 model:
   path: "models/model.joblib"
+
+cleaning:
+  # Rejilla común de tiempo (medida con los datos simulados; revisar con los reales)
+  interval_seconds: 10
+
+  # Etapa 1.2: control de rango (provisional, hasta tener hojas de datos y unidades)
+  limits:
+    temp:          {min: -10, max: 50}
+    hum:           {min: 0,   max: 100}
+    co2equivalent: {min: 0,   max: 5000}
+    pressure:      {min: 950, max: 1100}
+    voc:           {min: 0,   max: .inf}
+    airresistance: {min: 0,   max: .inf}
+    mic_vol:       {min: 0,   max: 1}
+
+  # Etapa 1.3: picos aislados (provisional, elegir con gráficas de datos reales)
+  spike_window_readings: 5
+  spike_thresholds:
+    temp: 1
+    hum: 2
+    pressure: 3
+    co2equivalent: 100
+    voc: 0.5
+    airresistance: 5000
+    mic_vol: 0.3
+
+  # Etapa 1.4: huecos
+  max_gap_readings: 3
+
+  # Etapa 1.5: suavizado (opcional; comparar el modelo con y sin)
+  smoothing:
+    enabled: true
+    window_seconds: 30
+    sensors: [mic_vol, co2equivalent, voc]
