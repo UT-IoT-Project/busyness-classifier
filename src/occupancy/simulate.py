@@ -1,7 +1,8 @@
 """Genera datos simulados con el mismo formato que la respuesta de la API.
 
-Sirven para probar el pipeline antes de que la API funcione. Se guardan en
+Sirven para probar el pipeline antes de tener datos reales. Se guardan en
 data/simulated/ y nunca deben mezclarse con datos reales.
+Formato: contrato de platform/docs/api/openapi.yaml (version del 30 de octubre).
 
 Ejecutar desde la raiz del repositorio (en Windows):
     set PYTHONPATH=src
@@ -9,7 +10,7 @@ Ejecutar desde la raiz del repositorio (en Windows):
 
 Archivos que genera:
     readings.json  respuesta completa de la API, con fallos metidos a proposito
-    labels.csv     numero real de personas en cada instante (sin fallos)
+    labels.csv     numero real de personas y nivel de ocupacion (0-3) en cada instante
     faults.json    lista de los fallos introducidos, para comprobar la limpieza
 
 IMPORTANTE: la relacion entre personas y sensores es inventada. Estos datos
@@ -33,9 +34,11 @@ SEED = 42                # semilla fija: siempre salen los mismos datos
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "simulated"
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
-PIR_IDS = ["pir-1", "pir-2", "pir-3"]
-SCALAR_SENSORS = ["pressure", "hum", "temp", "co2equivalent",
-                  "voc", "airresistance", "mic_vol"]
+PIR_IDS = [1, 2, 3]
+PIR_POLLS = 10           # el nodo lee cada PIR 10 veces y envia el % de actividad
+LABEL = "busynessLabel"
+SCALAR_SENSORS = ["pressure", "humidity", "temperature", "co2Equivalent", "voc",
+                  "iaq", "mic_vol", "wifiPackets", "bleAdverts", LABEL]
 
 
 def format_time(moment):
@@ -43,30 +46,50 @@ def format_time(moment):
     return moment.strftime(TIME_FORMAT)[:-3]
 
 
+def busy_level_from_people(n):
+    """Nivel de ocupacion (0-3) que pondria la persona que etiqueta.
+
+    Criterio provisional, por acordar con el grupo:
+    0 = vacia, 1 = de 1 a 5 personas, 2 = de 6 a 10, 3 = mas de 10.
+    """
+    if n == 0:
+        return 0
+    if n <= 5:
+        return 1
+    if n <= 10:
+        return 2
+    return 3
+
+
 def simulate_people(steps, interval_seconds, rng):
     """Numero de personas en cada paso: bloques de 10 a 30 minutos con un valor fijo."""
     people = []
     while len(people) < steps:
-        count = rng.choice([0, 0, 2, 5, 8, 12, 15])
+        count = rng.choice([0, 0, 3, 5, 8, 12, 15])
         block_minutes = rng.randint(10, 30)
         people.extend([count] * (block_minutes * 60 // interval_seconds))
     return people[:steps]
+
+
+def noisy_count(mean, rng):
+    """Un conteo entero, nunca negativo, alrededor de 'mean'."""
+    return max(0, round(rng.gauss(mean, math.sqrt(mean) + 1)))
 
 
 def simulate_readings(start_time, minutes, interval_seconds, rng):
     """Simula los mensajes que llegarian del nodo, uno por instante.
 
     Devuelve dos listas:
-    - messages: cada mensaje tiene 'timestamp', los sensores y 'PIRs'
-      (como el JSON del ESP32 con la hora que anade Mosquitto).
-    - labels: el numero real de personas en cada instante.
+    - messages: cada mensaje tiene 'timestamp', los sensores, la etiqueta
+      (busynessLabel, de 0 a 3, la pone una persona) y 'pirs'.
+    - labels: el numero real de personas y el nivel en cada instante.
     """
     start = datetime.strptime(start_time, TIME_FORMAT)
     steps = minutes * 60 // interval_seconds
     people = simulate_people(steps, interval_seconds, rng)
 
     # Valores iniciales de los sensores que cambian despacio
-    co2, temp, hum = 450.0, 21.0, 45.0
+    co2, temperature, humidity = 450.0, 21.0, 45.0
     messages, labels = [], []
 
     for i in range(steps):
@@ -75,25 +98,31 @@ def simulate_readings(start_time, minutes, interval_seconds, rng):
 
         # Cada sensor se acerca poco a poco a un nivel que depende de la gente
         co2 += (450 + 40 * n - co2) * 0.02 + rng.gauss(0, 5)
-        temp += (21 + 0.1 * n - temp) * 0.01 + rng.gauss(0, 0.02)
-        hum += (45 + 0.5 * n - hum) * 0.01 + rng.gauss(0, 0.1)
+        temperature += (21 + 0.1 * n - temperature) * 0.01 + rng.gauss(0, 0.02)
+        humidity += (45 + 0.5 * n - humidity) * 0.01 + rng.gauss(0, 0.1)
 
-        # Probabilidad de que un PIR detecte movimiento: crece con la gente
+        # Probabilidad de que un PIR detecte movimiento en una lectura
         p_active = 1 - math.exp(-0.3 * n)
 
         messages.append({
             "timestamp": timestamp,
             "pressure": round(1013 + rng.gauss(0, 0.3), 2),
-            "hum": round(hum, 2),
-            "temp": round(temp, 2),
-            "co2equivalent": round(co2, 1),
+            "humidity": round(humidity, 2),
+            "temperature": round(temperature, 2),
+            "co2Equivalent": round(co2, 1),
             "voc": round(max(0.0, 0.3 + 0.03 * n + rng.gauss(0, 0.05)), 3),
-            "airresistance": round(50000 - 1500 * n + rng.gauss(0, 500), 1),
+            "iaq": round(min(500.0, max(0.0, 25 + 12 * n + rng.gauss(0, 8))), 1),
             "mic_vol": round(min(1.0, max(0.0, 0.05 + 0.02 * n + rng.gauss(0, 0.03))), 3),
-            "PIRs": [{"id": pir_id, "value": 1 if rng.random() < p_active else 0}
+            "wifiPackets": noisy_count(8 + 6 * n, rng),
+            "bleAdverts": noisy_count(4 + 3 * n, rng),
+            LABEL: busy_level_from_people(n),
+            "pirs": [{"ID": pir_id,
+                      "activity": 100 * sum(rng.random() < p_active
+                                            for _ in range(PIR_POLLS)) // PIR_POLLS}
                      for pir_id in PIR_IDS],
         })
-        labels.append({"timestamp": timestamp, "people": n})
+        labels.append({"timestamp": timestamp, "people": n,
+                       LABEL: busy_level_from_people(n)})
 
     return messages, labels
 
@@ -113,32 +142,28 @@ def add_faults(messages, interval_seconds, rng):
                    "to": messages[start + gap_length - 1]["timestamp"]})
     del messages[start:start + gap_length]
 
-    # 2. Huecos cortos: se pierden mensajes sueltos
+    # 2. Huecos cortos: se pierden mensajes sueltos (con QoS 0 no se reenvian)
     for index in sorted(rng.sample(range(10, len(messages) - 10), 3), reverse=True):
         faults.append({"type": "short_gap", "timestamp": messages[index]["timestamp"]})
         del messages[index]
 
-    # 3. CO2 ausente: el campo es opcional y a veces no llega
-    for index in rng.sample(range(len(messages)), len(messages) // 50):
-        del messages[index]["co2equivalent"]
-        faults.append({"type": "missing_co2", "timestamp": messages[index]["timestamp"]})
-
-    # 4. Valores imposibles en un sensor concreto
-    impossible = [("co2equivalent", -50.0), ("co2equivalent", -50.0),
-                  ("temp", 150.0), ("hum", 130.0)]
+    # 3. Valores imposibles en un sensor concreto
+    impossible = [("co2Equivalent", -50.0), ("co2Equivalent", -50.0),
+                  ("temperature", 150.0), ("humidity", 130.0)]
     for sensor, value in impossible:
         index = rng.randrange(len(messages))
         messages[index][sensor] = value
         faults.append({"type": "impossible_value", "sensor": sensor,
                        "timestamp": messages[index]["timestamp"]})
 
-    # 5. Picos aislados en el microfono
+    # 4. Picos aislados en el microfono
     for index in rng.sample(range(1, len(messages) - 1), 4):
         messages[index]["mic_vol"] = 1.0
         faults.append({"type": "spike", "sensor": "mic_vol",
                        "timestamp": messages[index]["timestamp"]})
 
-    # 6. Duplicados: el mismo mensaje llega dos veces (QoS 1)
+    # 5. Duplicados: el mismo mensaje llega dos veces (poco probable con QoS 0,
+    #    pero posible si alguna vez se publica con QoS 1)
     for index in sorted(rng.sample(range(len(messages)), 8), reverse=True):
         messages.insert(index + 1, copy.deepcopy(messages[index]))
         faults.append({"type": "duplicate", "timestamp": messages[index]["timestamp"]})
@@ -148,7 +173,7 @@ def add_faults(messages, interval_seconds, rng):
 
 def to_api_response(messages):
     """Convierte los mensajes al formato de respuesta de la API (openapi.yaml)."""
-    data = {"PIR": []}
+    data = {"pirs": []}
     for sensor in SCALAR_SENSORS:
         data[sensor] = []
 
@@ -157,13 +182,7 @@ def to_api_response(messages):
         for sensor in SCALAR_SENSORS:
             if sensor in message:
                 data[sensor].append({"timestamp": timestamp, "value": message[sensor]})
-        data["PIR"].append({
-            "timestamp": timestamp,
-            "values": [{"ID": pir["id"], "value": pir["value"]} for pir in message["PIRs"]],
-        })
-
-    # Aun no sabemos que mide busy_level: se deja vacio, como permite la API
-    data["busy_level"] = []
+        data["pirs"].append({"timestamp": timestamp, "values": message["pirs"]})
 
     return {"status": 200, "message": "data retrieved successfully", "data": data}
 
@@ -181,7 +200,7 @@ def main():
         json.dump(response, f, indent=1)
 
     with open(OUTPUT_DIR / "labels.csv", "w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["timestamp", "people"])
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "people", LABEL])
         writer.writeheader()
         writer.writerows(labels)
 

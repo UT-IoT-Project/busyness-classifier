@@ -12,39 +12,45 @@ Orden de las etapas (ver el documento del pipeline):
     1.4 Huecos (rejilla comun de tiempo + interpolar huecos cortos)
     1.5 Suavizado (opcional)
 
+La etiqueta (busynessLabel, de 0 a 3, puesta por una persona) se separa de los
+sensores: solo pasa duplicados, control de rango y la rejilla de tiempo. No se
+interpola ni se suaviza, porque un nivel intermedio no existe.
+
 Uso:
     from occupancy.cleaning import clean
-    tables, pir = clean(data, config["cleaning"])
+    tables, pir, labels = clean(data, config["cleaning"])
 """
 import pandas as pd
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
-SKIPPED_SENSORS = ("PIR", "busy_level")
+PIR_SENSOR = "pirs"            # en la API: {timestamp, values: [{ID, activity}]}
+DEFAULT_LABEL = "busynessLabel"
 
 
 # ---------- 0. De la respuesta de la API a tablas ----------
 
-def readings_to_tables(data):
+def readings_to_tables(data, label=DEFAULT_LABEL):
     """Convierte el campo 'data' de la API en tablas de pandas.
 
     Devuelve:
     - tables: diccionario {sensor: tabla con columnas timestamp y value}
-    - pir: una tabla con timestamp y una columna por PIR (pir-1, pir-2...)
-    PIR y busy_level no van en tables.
+    - pir: una tabla con timestamp y una columna por PIR (pir-1, pir-2...),
+      con la actividad de cada uno (0 a 100)
+    Los PIR y la etiqueta no van en tables.
     """
     tables = {}
     for sensor, readings in data.items():
-        if sensor in SKIPPED_SENSORS:
+        if sensor in (PIR_SENSOR, label):
             continue
         table = pd.DataFrame(readings, columns=["timestamp", "value"])
         table["timestamp"] = pd.to_datetime(table["timestamp"], format=TIME_FORMAT)
         tables[sensor] = table
 
     rows = []
-    for reading in data.get("PIR", []):
+    for reading in data.get(PIR_SENSOR, []):
         row = {"timestamp": reading["timestamp"]}
         for p in reading["values"]:
-            row[p["ID"]] = p["value"]
+            row[f"pir-{p['ID']}"] = p["activity"]
         rows.append(row)
     pir = pd.DataFrame(rows)
     if not pir.empty:
@@ -117,15 +123,34 @@ def smooth(series, window):
     return smoothed.where(series.notna())
 
 
+# ---------- Etiqueta ----------
+
+def clean_labels(data, label_cfg, interval):
+    """Limpia la etiqueta (busynessLabel) y la pasa a la rejilla de tiempo.
+
+    Quita duplicados, vacia los valores fuera de [min, max] y se queda con el
+    ultimo valor de cada casilla. Los huecos se dejan vacios: esas filas no
+    sirven para entrenar.
+    Devuelve una tabla con timestamp y la columna de la etiqueta.
+    """
+    name = label_cfg["sensor"]
+    table = pd.DataFrame(data.get(name, []), columns=["timestamp", "value"])
+    table["timestamp"] = pd.to_datetime(table["timestamp"], format=TIME_FORMAT)
+    table = check_range(remove_duplicates(table), label_cfg)
+    series = table.set_index("timestamp")["value"].resample(interval).last()
+    return series.reset_index(name=name)
+
+
 # ---------- Todo el proceso ----------
 
 def clean(data, cfg):
     """Aplica toda la limpieza al campo 'data' de la API.
 
     cfg es la seccion "cleaning" de config.yaml.
-    Devuelve (tables, pir), todas en la misma rejilla de tiempo.
+    Devuelve (tables, pir, labels), todas en la misma rejilla de tiempo.
+    labels es None si la respuesta no trae la etiqueta (por ejemplo, en vivo).
     """
-    tables, pir = readings_to_tables(data)
+    tables, pir = readings_to_tables(data, cfg["label"]["sensor"])
     interval = pd.Timedelta(seconds=cfg["interval_seconds"])
     max_gap = cfg["max_gap_readings"]
     smoothing = cfg["smoothing"]
@@ -152,4 +177,8 @@ def clean(data, cfg):
             grid[column] = fill_short_gaps(grid[column], max_gap)
         pir = grid.reset_index()
 
-    return tables, pir
+    labels = None
+    if data.get(cfg["label"]["sensor"]):
+        labels = clean_labels(data, cfg["label"], interval)
+
+    return tables, pir, labels

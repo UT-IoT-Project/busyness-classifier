@@ -22,8 +22,8 @@ def run_cleaning():
 
 
 def test_all_sensors_share_the_same_time_grid():
-    tables, pir = run_cleaning()
-    reference = tables["temp"]["timestamp"]
+    tables, pir, labels = run_cleaning()
+    reference = tables["temperature"]["timestamp"]
     assert len(reference) == 1080
     for table in tables.values():
         assert table["timestamp"].equals(reference)
@@ -31,7 +31,7 @@ def test_all_sensors_share_the_same_time_grid():
 
 
 def test_only_the_long_gap_stays_empty():
-    tables, pir = run_cleaning()
+    tables, pir, labels = run_cleaning()
     for table in tables.values():
         assert table["value"].isna().sum() == 18
     for column in ["pir-1", "pir-2", "pir-3"]:
@@ -39,8 +39,17 @@ def test_only_the_long_gap_stays_empty():
 
 
 def test_no_impossible_values_or_spikes_remain():
-    tables, _ = run_cleaning()
-    assert tables["co2equivalent"]["value"].min() >= 0
-    assert tables["temp"]["value"].max() <= 50
-    assert tables["hum"]["value"].max() <= 100
+    tables, _, _ = run_cleaning()
+    assert tables["co2Equivalent"]["value"].min() >= 0
+    assert tables["temperature"]["value"].max() <= 50
+    assert tables["humidity"]["value"].max() <= 100
     assert tables["mic_vol"]["value"].max() < 0.5
+
+
+def test_labels_are_levels_on_the_same_grid():
+    tables, _, labels = run_cleaning()
+    assert labels["timestamp"].equals(tables["temperature"]["timestamp"])
+    assert set(labels["busynessLabel"].dropna().unique()) <= {0, 1, 2, 3}
+    # huecos sin rellenar: el largo (18) y los 3 mensajes sueltos perdidos
+    assert labels["busynessLabel"].isna().sum() == 21
+    assert "busynessLabel" not in tables
