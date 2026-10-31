@@ -42,7 +42,7 @@ cleaning:
     co2Equivalent: {min: 0,   max: 5000}
     pressure:      {min: 950, max: 1100}
     voc:           {min: 0,   max: .inf}
-    iaq:           {min: 0,   max: 500}    # por confirmar que es un indice de 0 a 500
+    iaq:           {min: 0,   max: 500}    # indoor air quality, de 0 a 500
     mic_vol:       {min: 0,   max: 1}
     wifiPackets:   {min: 0,   max: 4294967295}
     bleAdverts:    {min: 0,   max: 4294967295}
@@ -70,3 +70,7 @@ cleaning:
 
 model:
   path: "models/model.joblib"
+
+# Salida: por ahora las predicciones se guardan en local (decision del grupo).
+output:
+  predictions_path: "data/predictions/predictions.csv"

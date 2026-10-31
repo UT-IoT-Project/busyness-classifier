@@ -8,5 +8,6 @@ __pycache__/
 data/raw/*
 data/labels/*
 data/processed/*
+data/predictions/*
 models/*
 !**/.gitkeep
