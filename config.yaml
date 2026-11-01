@@ -71,6 +71,11 @@ cleaning:
 model:
   path: "models/model.joblib"
 
+# Prediccion en vivo
+prediction:
+  extra_history_minutes: 3   # minutos extra que se piden antes de la ventana (para limpiar bien)
+  min_confidence: 0.6        # por debajo, la prediccion se marca como poco fiable
+
 # Salida: por ahora las predicciones se guardan en local (decision del grupo).
 output:
   predictions_path: "data/predictions/predictions.csv"

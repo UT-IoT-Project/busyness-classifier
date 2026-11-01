@@ -19,10 +19,12 @@ def most_frequent(values):
 
 
 def build_windows(df, sensors, window_cfg, interval_seconds,
-                  label_column="busynessLabel", min_coverage=0.8):
+                  label_column="busynessLabel", min_coverage=0.8, last_only=False):
     """Devuelve una tabla con una fila por ventana valida.
 
     - Una ventana de 'size_minutes' cada 'step_seconds'.
+    - Con last_only=True devuelve solo la ultima ventana (prediccion en vivo);
+      si no es valida, devuelve una tabla vacia.
     - Columnas: las caracteristicas y, si df tiene etiqueta, 'label'.
     - Solo ventanas completas, con al menos 'min_coverage' de datos y,
       si hay etiqueta, con etiqueta.
@@ -49,13 +51,17 @@ def build_windows(df, sensors, window_cfg, interval_seconds,
             most_frequent, raw=True)
 
     coverage = df[sensors].notna().all(axis=1).rolling(window).mean()
-    windows = features.iloc[::step]
-    coverage = coverage.iloc[::step]
+    if last_only:
+        windows = features.iloc[[-1]]
+        coverage = coverage.iloc[[-1]]
+    else:
+        windows = features.iloc[::step]
+        coverage = coverage.iloc[::step]
     valid = (windows.index >= df.index[0] + pd.Timedelta(window)) & (coverage >= min_coverage)
-    if has_label:
+    if has_label and not last_only:
         valid = valid & windows[LABEL_COLUMN].notna()
 
     windows = windows[valid].copy()
-    if has_label:
+    if has_label and not last_only:
         windows[LABEL_COLUMN] = windows[LABEL_COLUMN].astype(int)
     return windows
