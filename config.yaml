@@ -75,6 +75,7 @@ model:
 prediction:
   extra_history_minutes: 3   # minutos extra que se piden antes de la ventana (para limpiar bien)
   min_confidence: 0.6        # por debajo, la prediccion se marca como poco fiable
+  clock_margin_minutes: 10   # margen por si el reloj del portatil y el de la Pi no coinciden
 
 # Salida: por ahora las predicciones se guardan en local (decision del grupo).
 output:

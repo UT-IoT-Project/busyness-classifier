@@ -37,9 +37,16 @@ def load_data():
 
 
 def make_windows(data, config):
-    """Fases 1, 2 y 4: limpieza, integracion y ventanas."""
+    """Fases 1, 2 y 4: limpieza, integracion y ventanas.
+
+    Son las mismas funciones que usa predict.py, para que el modelo vea en vivo
+    los datos con la misma forma con la que aprendio.
+    """
+    # Fase 1, limpieza (cleaning.py)
     tables, pir, labels = clean(data, config["cleaning"])
+    # Fase 2, integracion (integration.py)
     df = merge_all(tables, pir, labels)
+    # Fase 4, ventanas y caracteristicas (features.py): todas las ventanas
     return build_windows(df, list(tables), config["windows"],
                          config["cleaning"]["interval_seconds"])
 
