@@ -1,6 +1,6 @@
-"""Pruebas de las ventanas con los datos simulados, incluidos fallos de sensores.
+"""Tests of the windows with the simulated data, including sensor failures.
 
-Ejecutar desde la raiz del repositorio:  python -m pytest
+Run from the repository root:  python -m pytest
 """
 import json
 from pathlib import Path

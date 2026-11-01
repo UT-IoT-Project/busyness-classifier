@@ -1,11 +1,11 @@
-"""Pedir lecturas: a la API real del repositorio platform o a los datos simulados.
+"""Get readings: from the real API (platform repository) or from the simulated data.
 
-Contrato (platform/docs/api/openapi.yaml, version del 30 de octubre):
+Contract (platform/docs/api/openapi.yaml):
     GET /api/v1/readings/{building}/{roomNumber}
         ?start_time=...&end_time=...&sensors=...&sensors=...
-- Fechas 'YYYY-MM-DD HH:mm:ss.SSS' en hora local de Europe/Amsterdam.
-- Rango de 0 a 24 horas como maximo.
-- 404 = ningun sensor pedido tiene datos en ese rango (no es un error grave).
+- Times as 'YYYY-MM-DD HH:mm:ss.SSS' in Europe/Amsterdam local time.
+- Range of at most 24 hours.
+- 404 = none of the requested sensors has data in that range (not a fatal error).
 """
 import json
 from datetime import datetime
@@ -17,12 +17,12 @@ TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
 
 def format_time(moment):
-    """Fecha -> texto con el formato de la API (milisegundos)."""
+    """Datetime -> text in the API format (milliseconds)."""
     return moment.strftime(TIME_FORMAT)[:-3]
 
 
 class ApiSource:
-    """Lee de la API real."""
+    """Reads from the real API."""
 
     def __init__(self, config, timeout=10):
         api = config["api"]
@@ -31,26 +31,26 @@ class ApiSource:
         self.timeout = timeout
 
     def fetch(self, start, end):
-        """Devuelve el campo 'data' de la respuesta, o None si no hay datos (404)."""
+        """Return the 'data' field of the response, or None if there is no data (404)."""
         params = {"start_time": format_time(start),
                   "end_time": format_time(end),
                   "sensors": self.sensors}
-        # doseq repite la clave por cada sensor; quote codifica el espacio como %20
+        # doseq repeats the key for each sensor; quote encodes the space as %20
         query = urlencode(params, doseq=True, quote_via=quote)
         response = requests.get(f"{self.url}?{query}", timeout=self.timeout)
         if response.status_code == 404:
             return None
         body = response.json()
         if response.status_code != 200:
-            raise RuntimeError(f"La API respondio {response.status_code}: {body.get('message')}")
+            raise RuntimeError(f"The API answered {response.status_code}: {body.get('message')}")
         return body["data"]
 
 
 class SimulatedSource:
-    """Lee de data/simulated/readings.json como si fuera la API.
+    """Reads data/simulated/readings.json as if it were the API.
 
-    Sirve para probar la prediccion en vivo sin la API: devuelve solo las
-    lecturas entre start y end, con el mismo formato que la API real.
+    Used to test the live prediction without the API: returns only the
+    readings between start and end, in the same format as the real API.
     """
 
     def __init__(self, path):
@@ -58,7 +58,7 @@ class SimulatedSource:
             self.data = json.load(f)["data"]
 
     def time_span(self):
-        """Primera y ultima hora de los datos simulados."""
+        """First and last timestamp of the simulated data."""
         stamps = [datetime.strptime(r["timestamp"], TIME_FORMAT)
                   for readings in self.data.values() for r in readings]
         return min(stamps), max(stamps)

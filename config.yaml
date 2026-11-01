@@ -1,12 +1,12 @@
-# Configuracion unica para entrenamiento e inferencia.
+# Single configuration for training and inference.
 
 api:
-  base_url: "http://IP-DE-LA-PI:8080"   # por completar
-  building: "zilverling"                 # por completar
-  room: "Z2402"                          # por completar
+  base_url: "http://PI-IP-ADDRESS:8080"  # to be filled in
+  building: "zilverling"                 # to be filled in
+  room: "Z2402"                          # to be filled in
 
-# Nombres exactos del contrato de la API (sensibles a mayusculas).
-# Contrato de platform/docs/api/openapi.yaml, version del 30 de octubre.
+# Exact names from the API contract (case-sensitive).
+# Contract: platform/docs/api/openapi.yaml.
 sensors:
   - pirs
   - pressure
@@ -21,39 +21,39 @@ sensors:
   - busy_level
 
 windows:
-  size_minutes: 3     # ventana de 1 a 5 minutos (por decidir)
-  step_seconds: 30    # cada cuanto se calcula una ventana nueva
-  min_coverage: 0.8          # un sensor "tiene datos" si cubre al menos el 80 % de la ventana
-  min_sensor_fraction: 0.5   # ventana valida si al menos la mitad de los sensores tienen datos
-  # Sensores con los que se calculan las caracteristicas (siempre los mismos al
-  # entrenar y al predecir; los PIR se anaden aparte y la etiqueta nunca)
+  size_minutes: 3     # window of 1 to 5 minutes (to be decided)
+  step_seconds: 30    # how often a new window is computed
+  min_coverage: 0.8          # a sensor "has data" if it covers at least 80 % of the window
+  min_sensor_fraction: 0.5   # window valid if at least half of the sensors have data
+  # Sensors used to compute the features (always the same in training and
+  # prediction; the PIRs are added separately and the label never)
   sensors: [pressure, humidity, temperature, co2Equivalent, voc, iaq, mic_vol, wifiPackets, bleAdverts]
 
 cleaning:
-  # Rejilla comun de tiempo (medida con los datos simulados; revisar con los reales)
+  # Common time grid (measured on the simulated data; check with real data)
   interval_seconds: 10
 
-  # Etiqueta: nivel de ocupacion que pone una persona (0 = vacia ... 3 = muy ocupada).
-  # Solo se comprueba el rango; no se le quitan picos, no se interpola ni se suaviza.
+  # Label: occupancy level set by a person (0 = unoccupied ... 3 = extremely busy).
+  # Only the range is checked; no spike removal, interpolation or smoothing.
   label:
     sensor: busy_level
     min: 0
     max: 3
 
-  # Etapa 1.2: control de rango (provisional, hasta tener hojas de datos y unidades)
+  # Step 1.2: range check (provisional, until we have datasheets and units)
   limits:
     temperature:   {min: -10, max: 50}
     humidity:      {min: 0,   max: 100}
     co2Equivalent: {min: 0,   max: 5000}
     pressure:      {min: 950, max: 1100}
     voc:           {min: 0,   max: .inf}
-    iaq:           {min: 0,   max: 500}    # indoor air quality, de 0 a 500
+    iaq:           {min: 0,   max: 500}    # indoor air quality, 0 to 500
     mic_vol:       {min: 0,   max: 1}
     wifiPackets:   {min: 0,   max: 4294967295}
     bleAdverts:    {min: 0,   max: 4294967295}
 
-  # Etapa 1.3: picos aislados (provisional, elegir con graficas de datos reales).
-  # wifiPackets y bleAdverts no estan: son conteos y pueden saltar de verdad.
+  # Step 1.3: isolated spikes (provisional, choose with plots of real data).
+  # wifiPackets and bleAdverts are not here: they are counts and can really jump.
   spike_window_readings: 5
   spike_thresholds:
     temperature: 1
@@ -64,10 +64,10 @@ cleaning:
     iaq: 100
     mic_vol: 0.3
 
-  # Etapa 1.4: huecos
+  # Step 1.4: gaps
   max_gap_readings: 3
 
-  # Etapa 1.5: suavizado (opcional; comparar el modelo con y sin)
+  # Step 1.5: smoothing (optional; compare the model with and without it)
   smoothing:
     enabled: true
     window_seconds: 30
@@ -76,12 +76,12 @@ cleaning:
 model:
   path: "models/model.joblib"
 
-# Prediccion en vivo
+# Live prediction
 prediction:
-  extra_history_minutes: 3   # minutos extra que se piden antes de la ventana (para limpiar bien)
-  min_confidence: 0.6        # por debajo, la prediccion se marca como poco fiable
-  clock_margin_minutes: 10   # margen por si el reloj del portatil y el de la Pi no coinciden
+  extra_history_minutes: 3   # extra minutes requested before the window (for proper cleaning)
+  min_confidence: 0.6        # below this, the prediction is marked as unreliable
+  clock_margin_minutes: 10   # margin in case the laptop and Pi clocks do not match
 
-# Salida: por ahora las predicciones se guardan en local (decision del grupo).
+# Output: for now predictions are saved locally (group decision).
 output:
   predictions_path: "data/predictions/predictions.csv"

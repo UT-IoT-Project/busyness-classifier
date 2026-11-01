@@ -1,1 +1,1 @@
-"""Pipeline de ML para estimar el numero de personas en una sala."""
+"""ML pipeline that classifies the occupancy level (0-3) of a room."""

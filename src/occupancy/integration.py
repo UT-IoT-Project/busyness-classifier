@@ -1,16 +1,16 @@
-"""Fase 2: integracion. Une sensores, PIR y etiqueta en una sola tabla.
+"""Phase 2: integration. Joins sensors, PIRs and label into a single table.
 
-Es el codigo del notebook notebooks/02_integracion.ipynb.
+This is the code from notebooks/02_integracion.ipynb.
 """
 import pandas as pd
 
 
 def merge_all(tables, pir, labels=None):
-    """Une todo lo que devuelve cleaning.clean en una tabla.
+    """Join everything returned by cleaning.clean into one table.
 
-    - Indice: timestamp (la rejilla comun de la limpieza).
-    - Columnas: una por sensor, pir-1, pir-2, pir-3 y, si hay, la etiqueta.
-    labels puede ser None (en vivo, sin etiqueta).
+    - Index: timestamp (the common time grid from the cleaning).
+    - Columns: one per sensor, pir-1, pir-2, pir-3 and, if present, the label.
+    labels can be None (live, without a label).
     """
     parts = [table.set_index("timestamp")["value"].rename(sensor)
              for sensor, table in tables.items()]

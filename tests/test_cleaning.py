@@ -1,6 +1,6 @@
-"""Pruebas de la limpieza con los datos simulados (data/simulated/).
+"""Tests of the cleaning with the simulated data (data/simulated/).
 
-Ejecutar desde la raiz del repositorio:  python -m pytest
+Run from the repository root:  python -m pytest
 """
 import json
 from pathlib import Path
@@ -50,6 +50,6 @@ def test_labels_are_levels_on_the_same_grid():
     tables, _, labels = run_cleaning()
     assert labels["timestamp"].equals(tables["temperature"]["timestamp"])
     assert set(labels["busy_level"].dropna().unique()) <= {0, 1, 2, 3}
-    # huecos sin rellenar: el largo (18) y los 3 mensajes sueltos perdidos
+    # unfilled gaps: the long one (18) and the 3 single lost messages
     assert labels["busy_level"].isna().sum() == 21
     assert "busy_level" not in tables

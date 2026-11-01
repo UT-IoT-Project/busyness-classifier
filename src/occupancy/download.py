@@ -1,16 +1,15 @@
-"""Descargar una sesion de recogida de datos reales de la API.
+"""Download one real data-collection session from the API.
 
-Una sesion es un periodo en el que los nodos enviaban datos y una persona
-marcaba el nivel de ocupacion (busy_level). Cada sesion se guarda en un
-archivo propio en data/raw/<nombre>.json, con el mismo formato que la API.
-train.py usa cada archivo como un grupo para validar: entrena con unas
-sesiones y prueba con otra.
+A session is a period in which the nodes were sending data and a person was
+setting the occupancy level (busy_level). Each session is saved in its own file,
+data/raw/<name>.json, in the same format as the API. train.py uses each file as
+one group for validation: it trains on some sessions and tests on another.
 
-Ejecutar desde la raiz del repositorio (en Windows):
-    set PYTHONPATH=src
-    python -m occupancy.download --session sesion1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
+Run from the repository root (Windows PowerShell):
+    $env:PYTHONPATH = "src"
+    python -m occupancy.download --session session1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
 
-Las horas van en hora local de Amsterdam, como las pide la API.
+Times are in Amsterdam local time, as the API expects.
 """
 import argparse
 import json
@@ -19,49 +18,49 @@ from datetime import datetime, timedelta
 from occupancy.api_client import ApiSource, format_time
 from occupancy.train import ROOT, load_config
 
-MAX_CHUNK = timedelta(hours=24)        # la API no acepta mas de 24 h por peticion
+MAX_CHUNK = timedelta(hours=24)        # the API does not accept more than 24 h per request
 ONE_MS = timedelta(milliseconds=1)
 
 
 def download(source, start, end):
-    """Pide el periodo en trozos de 24 h como maximo y une las lecturas."""
+    """Request the period in chunks of at most 24 h and merge the readings."""
     merged = {}
     chunk_start = start
     while chunk_start <= end:
         chunk_end = min(chunk_start + MAX_CHUNK, end)
-        print("Pidiendo", format_time(chunk_start), "->", format_time(chunk_end))
+        print("Requesting", format_time(chunk_start), "->", format_time(chunk_end))
         data = source.fetch(chunk_start, chunk_end)
         if data is None:
-            print("  sin datos en este trozo")
+            print("  no data in this chunk")
         else:
             for sensor, readings in data.items():
                 merged.setdefault(sensor, []).extend(readings)
-        # Los extremos se incluyen: el siguiente trozo empieza 1 ms despues
+        # Both ends are included: the next chunk starts 1 ms later
         chunk_start = chunk_end + ONE_MS
     return merged
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Descargar una sesion de datos reales")
-    parser.add_argument("--session", required=True, help="nombre de la sesion (nombre del archivo)")
-    parser.add_argument("--start", required=True, help='inicio, "YYYY-MM-DD HH:MM" (hora de Amsterdam)')
-    parser.add_argument("--end", required=True, help='fin, "YYYY-MM-DD HH:MM" (hora de Amsterdam)')
+    parser = argparse.ArgumentParser(description="Download a session of real data")
+    parser.add_argument("--session", required=True, help="session name (used as file name)")
+    parser.add_argument("--start", required=True, help='start, "YYYY-MM-DD HH:MM" (Amsterdam time)')
+    parser.add_argument("--end", required=True, help='end, "YYYY-MM-DD HH:MM" (Amsterdam time)')
     args = parser.parse_args()
 
     config = load_config()
     start = datetime.strptime(args.start, "%Y-%m-%d %H:%M")
     end = datetime.strptime(args.end, "%Y-%m-%d %H:%M")
     if end <= start:
-        raise SystemExit("El fin tiene que ser posterior al inicio")
+        raise SystemExit("The end must be after the start")
 
     data = download(ApiSource(config), start, end)
     if not any(data.values()):
-        raise SystemExit("La API no devolvio datos en ese periodo: no se guarda nada")
+        raise SystemExit("The API returned no data for that period: nothing saved")
 
     labels = data.get(config["cleaning"]["label"]["sensor"], [])
     print({sensor: len(readings) for sensor, readings in data.items()})
     if not labels:
-        print("AVISO: la sesion no tiene etiqueta (busy_level): no servira para entrenar")
+        print("WARNING: the session has no label (busy_level): it cannot be used for training")
 
     path = ROOT / "data" / "raw" / f"{args.session}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,7 +72,7 @@ def main():
                "data": data}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(session, f)
-    print("Guardado en", path)
+    print("Saved to", path)
 
 
 if __name__ == "__main__":

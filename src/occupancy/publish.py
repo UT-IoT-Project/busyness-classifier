@@ -1,8 +1,8 @@
-"""Guardar la prediccion.
+"""Save the prediction.
 
-Por ahora se guarda en local (decision del grupo): se anade una fila a un CSV,
-cuya ruta esta en config.yaml (output.predictions_path). Si mas adelante se
-publica por MQTT o por la API, solo cambia esta funcion.
+For now it is saved locally (group decision): one row is appended to a CSV
+file whose path is in config.yaml (output.predictions_path). If later the
+predictions are published via MQTT or the API, only this function changes.
 """
 import csv
 from pathlib import Path
@@ -12,7 +12,7 @@ FIELDS = ["timestamp", "predicted_level", "confidence",
 
 
 def publish_prediction(path, row):
-    """Anade una fila al CSV de predicciones (crea el archivo y la cabecera si no existen)."""
+    """Append one row to the predictions CSV (creates the file and header if needed)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     new_file = not path.exists()

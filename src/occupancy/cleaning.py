@@ -1,42 +1,42 @@
-"""Fase 1: limpieza de datos.
+"""Phase 1: data cleaning.
 
-Es el codigo del notebook notebooks/01_limpieza.ipynb, pasado a funciones para
-que el entrenamiento y la prediccion en vivo limpien exactamente igual.
-Todos los ajustes se leen de la seccion "cleaning" de config.yaml.
+This is the code from notebooks/01_limpieza.ipynb, turned into functions so that
+training and live prediction clean the data in exactly the same way.
+All settings are read from the "cleaning" section of config.yaml.
 
-Orden de las etapas (ver el documento del pipeline):
-    0. Convertir la respuesta de la API en tablas
-    1.1 Duplicados
-    1.2 Control de rango
-    1.3 Picos aislados
-    1.4 Huecos (rejilla comun de tiempo + interpolar huecos cortos)
-    1.5 Suavizado (opcional)
+Order of the steps (see the pipeline document):
+    0. Turn the API response into tables
+    1.1 Duplicates
+    1.2 Range check
+    1.3 Isolated spikes
+    1.4 Gaps (common time grid + interpolate short gaps)
+    1.5 Smoothing (optional)
 
-La etiqueta (busy_level, de 0 a 3, puesta por una persona) se separa de los
-sensores: solo pasa duplicados, control de rango y la rejilla de tiempo. No se
-interpola ni se suaviza, porque un nivel intermedio no existe.
+The label (busy_level, 0 to 3, set by a person) is kept apart from the sensors:
+it only goes through duplicates, range check and the time grid. It is never
+interpolated or smoothed, because an in-between level does not exist.
 
-Uso:
+Usage:
     from occupancy.cleaning import clean
     tables, pir, labels = clean(data, config["cleaning"])
 """
 import pandas as pd
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
-PIR_SENSOR = "pirs"            # en la API: {timestamp, values: [{ID, activity}]}
+PIR_SENSOR = "pirs"            # in the API: {timestamp, values: [{ID, activity}]}
 DEFAULT_LABEL = "busy_level"
 
 
-# ---------- 0. De la respuesta de la API a tablas ----------
+# ---------- 0. From the API response to tables ----------
 
 def readings_to_tables(data, label=DEFAULT_LABEL):
-    """Convierte el campo 'data' de la API en tablas de pandas.
+    """Turn the 'data' field of the API response into pandas tables.
 
-    Devuelve:
-    - tables: diccionario {sensor: tabla con columnas timestamp y value}
-    - pir: una tabla con timestamp y una columna por PIR (pir-1, pir-2...),
-      con la actividad de cada uno (0 a 100)
-    Los PIR y la etiqueta no van en tables.
+    Returns:
+    - tables: dict {sensor: table with columns timestamp and value}
+    - pir: one table with timestamp and one column per PIR (pir-1, pir-2...),
+      holding the activity of each one (0 to 100)
+    The PIRs and the label are not included in tables.
     """
     tables = {}
     for sensor, readings in data.items():
@@ -59,30 +59,30 @@ def readings_to_tables(data, label=DEFAULT_LABEL):
     return tables, pir
 
 
-# ---------- 1.1 Duplicados ----------
+# ---------- 1.1 Duplicates ----------
 
 def remove_duplicates(table):
-    """Quita las filas exactamente iguales (QoS 1 puede entregar un mensaje dos veces).
+    """Remove rows that are exactly equal (MQTT QoS 1 can deliver a message twice).
 
-    Compara la fila completa, no solo la hora.
+    Compares the whole row, not only the timestamp.
     """
     return table.drop_duplicates()
 
 
-# ---------- 1.2 Control de rango ----------
+# ---------- 1.2 Range check ----------
 
 def check_range(table, limits):
-    """Vacia (NaN) los valores fuera de [min, max], sin borrar la fila."""
+    """Empty (NaN) the values outside [min, max], without deleting the row."""
     table = table.copy()
     out_of_range = (table["value"] < limits["min"]) | (table["value"] > limits["max"])
     table["value"] = table["value"].mask(out_of_range)
     return table
 
 
-# ---------- 1.3 Picos aislados ----------
+# ---------- 1.3 Isolated spikes ----------
 
 def remove_spikes(table, threshold, window_readings):
-    """Vacia los valores que se alejan de la mediana de sus vecinos mas que el umbral."""
+    """Empty the values that are further than 'threshold' from the median of their neighbours."""
     table = table.copy()
     median = table["value"].rolling(window_readings, center=True, min_periods=1).median()
     distance = table["value"].sub(median).abs()
@@ -90,22 +90,22 @@ def remove_spikes(table, threshold, window_readings):
     return table
 
 
-# ---------- 1.4 Huecos ----------
+# ---------- 1.4 Gaps ----------
 
 def to_grid(table, interval):
-    """Pasa una tabla a la rejilla regular de tiempo.
+    """Put a table on the regular time grid.
 
-    Devuelve una tabla con timestamp como indice y una fila exacta cada 'interval'.
-    Los momentos sin lectura quedan como NaN. Sirve tambien para la tabla de PIR,
-    que tiene varias columnas.
+    Returns a table with timestamp as index and exactly one row every 'interval'.
+    Moments without a reading become NaN. Also works for the PIR table,
+    which has several columns.
     """
     return table.set_index("timestamp").resample(interval).mean()
 
 
 def fill_short_gaps(series, max_gap_readings):
-    """Interpola solo los huecos de como mucho max_gap_readings lecturas seguidas.
+    """Interpolate only the gaps of at most max_gap_readings consecutive readings.
 
-    Los huecos mas largos se dejan enteros vacios (no se rellena solo su principio).
+    Longer gaps are left completely empty (not just partly filled at the start).
     """
     empty = series.isna()
     group = (empty != empty.shift()).cumsum()
@@ -115,23 +115,23 @@ def fill_short_gaps(series, max_gap_readings):
     return series.mask(short_gap, filled)
 
 
-# ---------- 1.5 Suavizado ----------
+# ---------- 1.5 Smoothing ----------
 
 def smooth(series, window):
-    """Media movil que solo mira hacia atras; no rellena los huecos que ya estaban vacios."""
+    """Backward-looking moving average; does not fill gaps that were already empty."""
     smoothed = series.rolling(window, min_periods=1).mean()
     return smoothed.where(series.notna())
 
 
-# ---------- Etiqueta ----------
+# ---------- Label ----------
 
 def clean_labels(data, label_cfg, interval):
-    """Limpia la etiqueta (busy_level) y la pasa a la rejilla de tiempo.
+    """Clean the label (busy_level) and put it on the time grid.
 
-    Quita duplicados, vacia los valores fuera de [min, max] y se queda con el
-    ultimo valor de cada casilla. Los huecos se dejan vacios: esas filas no
-    sirven para entrenar.
-    Devuelve una tabla con timestamp y la columna de la etiqueta.
+    Removes duplicates, empties values outside [min, max] and keeps the last
+    value of each grid cell. Gaps are left empty: those rows cannot be used
+    for training.
+    Returns a table with timestamp and the label column.
     """
     name = label_cfg["sensor"]
     table = pd.DataFrame(data.get(name, []), columns=["timestamp", "value"])
@@ -141,14 +141,14 @@ def clean_labels(data, label_cfg, interval):
     return series.reset_index(name=name)
 
 
-# ---------- Todo el proceso ----------
+# ---------- Whole process ----------
 
 def clean(data, cfg):
-    """Aplica toda la limpieza al campo 'data' de la API.
+    """Apply the whole cleaning to the 'data' field of the API response.
 
-    cfg es la seccion "cleaning" de config.yaml.
-    Devuelve (tables, pir, labels), todas en la misma rejilla de tiempo.
-    labels es None si la respuesta no trae la etiqueta (por ejemplo, en vivo).
+    cfg is the "cleaning" section of config.yaml.
+    Returns (tables, pir, labels), all on the same time grid.
+    labels is None if the response has no label (for example, live).
     """
     tables, pir = readings_to_tables(data, cfg["label"]["sensor"])
     interval = pd.Timedelta(seconds=cfg["interval_seconds"])

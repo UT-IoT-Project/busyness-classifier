@@ -1,83 +1,91 @@
-# Clasificacion del nivel de ocupacion de salas (ML)
+# Room occupancy level classification (ML)
 
-Parte de ML del proyecto de IoT. Estima el **nivel de ocupacion** de una sala,
-de 0 a 3, a partir de los sensores de los nodos ESP32:
+*Versión en español: [README.es.md](README.es.md)*
 
-| Nivel | Significado |
+ML part of the IoT project. It estimates the **occupancy level** of a room,
+from 0 to 3, using the sensors of the ESP32 nodes:
+
+| Level | Meaning |
 | --- | --- |
-| 0 | Desocupada |
-| 1 | Un poco ocupada |
-| 2 | Ocupada |
-| 3 | Extremadamente ocupada |
+| 0 | Unoccupied |
+| 1 | Slightly busy |
+| 2 | Busy |
+| 3 | Extremely busy |
 
-Es una **clasificacion supervisada**: se entrena con datos en los que una
-persona marca el nivel real (`busy_level`) y despues lo predice sin ella.
-Lee los datos de la API del repositorio `platform` (contrato en
-`platform/docs/api/openapi.yaml`). El codigo y el modelo se ejecutan en un
-portatil; las predicciones se guardan en local, en un CSV.
+It is **supervised classification**: the model is trained on data in which a
+person sets the true level (`busy_level`), and then predicts it without them.
+It reads the data from the API of the `platform` repository (contract in
+`platform/docs/api/openapi.yaml`). The code and the model run on a laptop;
+predictions are saved locally in a CSV file.
 
 ## Pipeline
 
 ```
-API (Raspberry Pi) -> limpieza -> integracion -> ventanas -> Random Forest -> CSV
+API (Raspberry Pi) -> cleaning -> integration -> windows -> Random Forest -> CSV
 ```
 
-| Ruta | Contenido |
+| Path | Content |
 | --- | --- |
-| `config.yaml` | Toda la configuracion: API, sensores, limpieza, ventanas, prediccion |
-| `src/occupancy/api_client.py` | Pedir lecturas a la API real o a los datos simulados |
-| `src/occupancy/download.py` | Descargar una sesion de datos reales a `data/raw/` |
-| `src/occupancy/cleaning.py` | Fase 1: duplicados, rango, picos, huecos y suavizado |
-| `src/occupancy/integration.py` | Fase 2: unir sensores, PIR y etiqueta en una tabla |
-| `src/occupancy/features.py` | Fase 4: ventanas de 3 min y sus caracteristicas |
-| `src/occupancy/train.py` | Entrenar, validar dejando fuera una sesion y guardar el modelo |
-| `src/occupancy/predict.py` | Prediccion en vivo cada 30 s |
-| `src/occupancy/publish.py` | Guardar cada prediccion en el CSV |
-| `src/occupancy/simulate.py` | Generar datos simulados para probar sin la API |
-| `notebooks/` | Notebooks paso a paso de cada fase (01 limpieza ... 04 modelo) |
-| `tests/` | Pruebas (`python -m pytest`) |
-| `data/simulated/` | Datos simulados (se suben); nunca mezclar con los reales |
-| `data/raw/` | Sesiones reales descargadas (no se suben) |
-| `data/predictions/` | Predicciones (no se suben) |
-| `models/` | Modelo entrenado (no se sube) |
+| `config.yaml` | All settings: API, sensors, cleaning, windows, prediction |
+| `src/occupancy/api_client.py` | Request readings from the real API or the simulated data |
+| `src/occupancy/download.py` | Download a real data session to `data/raw/` |
+| `src/occupancy/cleaning.py` | Phase 1: duplicates, range, spikes, gaps and smoothing |
+| `src/occupancy/integration.py` | Phase 2: join sensors, PIRs and label into one table |
+| `src/occupancy/features.py` | Phase 4: 3-minute windows and their features |
+| `src/occupancy/train.py` | Train, validate leaving one session out, save the model |
+| `src/occupancy/predict.py` | Live prediction every 30 s |
+| `src/occupancy/publish.py` | Save each prediction to the CSV |
+| `src/occupancy/simulate.py` | Generate simulated data to test without the API |
+| `notebooks/` | Step-by-step notebooks for each phase (01 cleaning ... 04 model, in Spanish) |
+| `tests/` | Tests (`python -m pytest`) |
+| `data/simulated/` | Simulated data (committed); never mix with real data |
+| `data/raw/` | Downloaded real sessions (not committed) |
+| `data/predictions/` | Predictions (not committed) |
+| `models/` | Trained model (not committed) |
 
-La fase 3 (reduccion) se hace mirando la importancia de cada caracteristica que
-muestra el entrenamiento. La fase 5 (discretizacion) no hace falta: los niveles
-ya llegan discretizados.
+Phase 3 (reduction) is done by looking at the feature importances shown in
+training. Phase 5 (discretization) is not needed: the levels are already
+discrete.
 
-## Puesta en marcha (Windows)
+## Setup (Windows)
 
 ```sh
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-set PYTHONPATH=src
 ```
 
-Antes de usar la API, completa en `config.yaml` la seccion `api`: direccion de
-la Raspberry Pi, edificio y sala.
+Before running the modules, tell Python where the code is (only lasts while
+the terminal is open):
 
-## Uso
+- PowerShell (VS Code's default terminal): `$env:PYTHONPATH = "src"`
+- Command Prompt (cmd): `set PYTHONPATH=src`
 
-1. **Recoger datos**: con los nodos enviando y una persona marcando `busy_level`,
-   descarga cada sesion (horas de Amsterdam):
+Before using the API, fill in the `api` section of `config.yaml`: Raspberry Pi
+address, building and room.
+
+## Usage
+
+1. **Collect data**: with the nodes sending and someone setting `busy_level`,
+   download each session (Amsterdam time). Each session should go through all
+   four levels:
 
    ```sh
-   python -m occupancy.download --session sesion1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
+   python -m occupancy.download --session session1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
    ```
 
-2. **Entrenar** con todas las sesiones de `data/raw/` (cuantas mas, mejor; con
-   dos o mas, la validacion deja fuera una sesion entera cada vez):
+2. **Train** with all sessions in `data/raw/` (the more, the better; with two or
+   more, validation leaves one whole session out each time):
 
    ```sh
    python -m occupancy.train
    ```
 
-3. **Predecir en vivo** (una prediccion cada 30 s, en `data/predictions/predictions.csv`):
+3. **Predict live** (one prediction every 30 s, saved to `data/predictions/predictions.csv`):
 
    ```sh
    python -m occupancy.predict
    ```
 
-Para probar todo sin la API: `python -m occupancy.train --simulated` y
+To test everything without the API: `python -m occupancy.train --simulated` and
 `python -m occupancy.predict --simulate`.
