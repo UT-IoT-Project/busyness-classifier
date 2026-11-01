@@ -92,9 +92,8 @@ entre sensores se revisara con datos reales (diapositivas 27-33).
 
 ### 3. Reduccion
 
-No se quita nada a mano. Despues de entrenar, la importancia de cada
-caracteristica (`feature_importances_` del modelo en `models/model.joblib`)
-indica cuales sirven; las que salen casi a cero son candidatas a quitarse,
+No se quita nada a mano. Al final del entrenamiento, `train.py` imprime la
+importancia de cada caracteristica (`feature_importances_`, suman 1); las que salen casi a cero son candidatas a quitarse,
 comprobando que la exactitud no baja (diapositivas 34-46). La decision se toma
 con datos reales.
 

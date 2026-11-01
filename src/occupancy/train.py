@@ -105,6 +105,18 @@ def train_final(X, y):
             "feature_max": X.max()}       # when something never seen appears live
 
 
+def show_importances(model, features):
+    """Phase 3, reduction: how much each feature is used by the model (they add up to 1).
+
+    Features close to zero are candidates to remove; check afterwards that
+    validation accuracy does not drop without them.
+    """
+    importances = pd.Series(model.feature_importances_, index=features)
+    print("\nFeature importance (phase 3, reduction):")
+    for name, value in importances.sort_values(ascending=False).items():
+        print(f"  {name:<22} {value:.3f}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Train the occupancy model")
     parser.add_argument("--simulated", action="store_true", help="use the simulated data")
@@ -155,6 +167,7 @@ def main():
     report(*validate(X, y, groups, splitter), by_group=len(sessions) >= 2)
 
     bundle = train_final(X, y)
+    show_importances(bundle["model"], bundle["features"])
     path = ROOT / config["model"]["path"]
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(bundle, path)

@@ -92,9 +92,8 @@ sensors will be checked with real data (slides 27-33).
 
 ### 3. Reduction
 
-Nothing is removed by hand. After training, the model's feature importances
-(`feature_importances_` of the model in `models/model.joblib`) show which
-features matter; those close to zero are candidates to remove, checking that
+Nothing is removed by hand. At the end of training, `train.py` prints the
+importance of each feature (`feature_importances_`, they add up to 1); those close to zero are candidates to remove, checking that
 accuracy does not drop (slides 34-46). The decision is made with real data.
 
 ### 4. Transformation: windows and features (`features.py`)
