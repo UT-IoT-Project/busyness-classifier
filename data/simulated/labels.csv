@@ -1,4 +1,4 @@
-timestamp,people,busynessLabel
+timestamp,people,busy_level
 2026-10-20 09:00:00.000,12,3
 2026-10-20 09:00:10.000,12,3
 2026-10-20 09:00:20.000,12,3

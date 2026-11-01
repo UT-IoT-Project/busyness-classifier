@@ -12,7 +12,7 @@ Orden de las etapas (ver el documento del pipeline):
     1.4 Huecos (rejilla comun de tiempo + interpolar huecos cortos)
     1.5 Suavizado (opcional)
 
-La etiqueta (busynessLabel, de 0 a 3, puesta por una persona) se separa de los
+La etiqueta (busy_level, de 0 a 3, puesta por una persona) se separa de los
 sensores: solo pasa duplicados, control de rango y la rejilla de tiempo. No se
 interpola ni se suaviza, porque un nivel intermedio no existe.
 
@@ -24,7 +24,7 @@ import pandas as pd
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 PIR_SENSOR = "pirs"            # en la API: {timestamp, values: [{ID, activity}]}
-DEFAULT_LABEL = "busynessLabel"
+DEFAULT_LABEL = "busy_level"
 
 
 # ---------- 0. De la respuesta de la API a tablas ----------
@@ -126,7 +126,7 @@ def smooth(series, window):
 # ---------- Etiqueta ----------
 
 def clean_labels(data, label_cfg, interval):
-    """Limpia la etiqueta (busynessLabel) y la pasa a la rejilla de tiempo.
+    """Limpia la etiqueta (busy_level) y la pasa a la rejilla de tiempo.
 
     Quita duplicados, vacia los valores fuera de [min, max] y se queda con el
     ultimo valor de cada casilla. Los huecos se dejan vacios: esas filas no

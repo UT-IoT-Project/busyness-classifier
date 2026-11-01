@@ -62,8 +62,9 @@ def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
     # Fase 2, integracion (integration.py): todo en una tabla, una fila cada 10 s
     df = merge_all(tables, pir, labels)
     # Fase 4, ventanas y caracteristicas (features.py): solo la ultima ventana
-    windows = build_windows(df, list(tables), config["windows"],
-                            config["cleaning"]["interval_seconds"], last_only=True)
+    windows = build_windows(df, config["windows"]["sensors"], config["windows"],
+                            config["cleaning"]["interval_seconds"],
+                            label_column=config["cleaning"]["label"]["sensor"], last_only=True)
 
     # Comprobaciones: ventana con pocos datos, o la misma que la prediccion anterior
     if windows.empty:
@@ -80,7 +81,10 @@ def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
     real_level = windows[LABEL_COLUMN].iloc[0] if LABEL_COLUMN in windows else None
     # Entrada del modelo: las mismas caracteristicas, en el mismo orden y con el
     # mismo relleno de vacios que al entrenar
-    X = windows.reindex(columns=bundle["features"]).fillna(bundle["fill_values"])
+    X = windows.reindex(columns=bundle["features"])
+    # Caracteristicas vacias (un sensor sin datos): se rellenan, pero se avisa
+    missing = list(X.columns[X.iloc[0].isna()])
+    X = X.fillna(bundle["fill_values"])
 
     # Aqui se llama al modelo: cada arbol vota y se obtiene la probabilidad de cada nivel
     probabilities = bundle["model"].predict_proba(X)[0]
@@ -88,8 +92,11 @@ def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
     level = classes[probabilities.argmax()]
     confidence = probabilities.max()
 
-    # Aviso de poca fiabilidad: el modelo duda, o algun valor no se vio al entrenar
-    reliable = confidence >= pred_cfg["min_confidence"]
+    # Aviso de poca fiabilidad: el modelo duda, falta algun sensor, o algun
+    # valor no se vio al entrenar
+    reliable = confidence >= pred_cfg["min_confidence"] and not missing
+    if missing:
+        print(format_time(now), "aviso: sin datos para", ", ".join(missing))
     if "feature_min" in bundle:
         outside = (X.iloc[0] < bundle["feature_min"]) | (X.iloc[0] > bundle["feature_max"])
         reliable = reliable and not outside.any()

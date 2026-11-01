@@ -49,7 +49,7 @@ def test_no_impossible_values_or_spikes_remain():
 def test_labels_are_levels_on_the_same_grid():
     tables, _, labels = run_cleaning()
     assert labels["timestamp"].equals(tables["temperature"]["timestamp"])
-    assert set(labels["busynessLabel"].dropna().unique()) <= {0, 1, 2, 3}
+    assert set(labels["busy_level"].dropna().unique()) <= {0, 1, 2, 3}
     # huecos sin rellenar: el largo (18) y los 3 mensajes sueltos perdidos
-    assert labels["busynessLabel"].isna().sum() == 21
-    assert "busynessLabel" not in tables
+    assert labels["busy_level"].isna().sum() == 21
+    assert "busy_level" not in tables

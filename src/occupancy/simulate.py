@@ -36,7 +36,7 @@ OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "simulated"
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 PIR_IDS = [1, 2, 3]
 PIR_POLLS = 10           # el nodo lee cada PIR 10 veces y envia el % de actividad
-LABEL = "busynessLabel"
+LABEL = "busy_level"
 SCALAR_SENSORS = ["pressure", "humidity", "temperature", "co2Equivalent", "voc",
                   "iaq", "mic_vol", "wifiPackets", "bleAdverts", LABEL]
 
@@ -81,7 +81,7 @@ def simulate_readings(start_time, minutes, interval_seconds, rng):
 
     Devuelve dos listas:
     - messages: cada mensaje tiene 'timestamp', los sensores, la etiqueta
-      (busynessLabel, de 0 a 3, la pone una persona) y 'pirs'.
+      (busy_level, de 0 a 3, la pone una persona) y 'pirs'.
     - labels: el numero real de personas y el nivel en cada instante.
     """
     start = datetime.strptime(start_time, TIME_FORMAT)

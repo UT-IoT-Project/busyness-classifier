@@ -18,11 +18,16 @@ sensors:
   - mic_vol
   - wifiPackets
   - bleAdverts
-  - busynessLabel
+  - busy_level
 
 windows:
   size_minutes: 3     # ventana de 1 a 5 minutos (por decidir)
   step_seconds: 30    # cada cuanto se calcula una ventana nueva
+  min_coverage: 0.8          # un sensor "tiene datos" si cubre al menos el 80 % de la ventana
+  min_sensor_fraction: 0.5   # ventana valida si al menos la mitad de los sensores tienen datos
+  # Sensores con los que se calculan las caracteristicas (siempre los mismos al
+  # entrenar y al predecir; los PIR se anaden aparte y la etiqueta nunca)
+  sensors: [pressure, humidity, temperature, co2Equivalent, voc, iaq, mic_vol, wifiPackets, bleAdverts]
 
 cleaning:
   # Rejilla comun de tiempo (medida con los datos simulados; revisar con los reales)
@@ -31,7 +36,7 @@ cleaning:
   # Etiqueta: nivel de ocupacion que pone una persona (0 = vacia ... 3 = muy ocupada).
   # Solo se comprueba el rango; no se le quitan picos, no se interpola ni se suaviza.
   label:
-    sensor: busynessLabel
+    sensor: busy_level
     min: 0
     max: 3
 
