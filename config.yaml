@@ -1,9 +1,9 @@
 # Single configuration for training and inference.
 
 api:
-  base_url: "http://PI-IP-ADDRESS:8080"  # to be filled in
-  building: "zilverling"                 # to be filled in
-  room: "Z2402"                          # to be filled in
+  base_url: "https://192.168.0.181:8080"  # to be filled in
+  building: "designlab"                 # to be filled in
+  room: "1"                          # to be filled in
 
 # Exact names from the API contract (case-sensitive).
 # Contract: platform/docs/api/openapi.yaml.

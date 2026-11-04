@@ -4,9 +4,8 @@ Used to test the pipeline before there is real data. Saved in data/simulated/
 and must never be mixed with real data.
 Format: contract in platform/docs/api/openapi.yaml.
 
-Run from the repository root (Windows PowerShell):
-    $env:PYTHONPATH = "src"
-    python -m occupancy.simulate
+Run from the repository root:
+    python -m src.occupancy.simulate
 
 Files it generates:
     readings.json  full API response, with faults added on purpose

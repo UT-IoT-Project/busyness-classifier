@@ -1,9 +1,8 @@
 """Model training (this is the code from notebooks/04_modelo.ipynb).
 
-Run from the repository root (Windows PowerShell):
-    $env:PYTHONPATH = "src"
-    python -m occupancy.train               with the real sessions in data/raw/
-    python -m occupancy.train --simulated   with the simulated data
+Run from the repository root:
+    python -m src.occupancy.train               with the real sessions in data/raw/
+    python -m src.occupancy.train --simulated   with the simulated data
 
 With real data, each file in data/raw/ is one session (see download.py).
 Validation trains on all sessions but one and tests on the one left out,
@@ -12,6 +11,7 @@ has not seen.
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import joblib
@@ -22,9 +22,15 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import LeaveOneGroupOut, StratifiedGroupKFold
 
-from occupancy.cleaning import clean
-from occupancy.features import LABEL_COLUMN, build_windows
-from occupancy.integration import merge_all
+if __package__:
+    from .cleaning import clean
+    from .features import LABEL_COLUMN, build_windows
+    from .integration import merge_all
+else:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from occupancy.cleaning import clean
+    from occupancy.features import LABEL_COLUMN, build_windows
+    from occupancy.integration import merge_all
 
 ROOT = Path(__file__).resolve().parents[2]
 LEVELS = [0, 1, 2, 3]

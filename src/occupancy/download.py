@@ -5,9 +5,8 @@ setting the occupancy level (busy_level). Each session is saved in its own file,
 data/raw/<name>.json, in the same format as the API. train.py uses each file as
 one group for validation: it trains on some sessions and tests on another.
 
-Run from the repository root (Windows PowerShell):
-    $env:PYTHONPATH = "src"
-    python -m occupancy.download --session session1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
+Run from the repository root:
+    python -m src.occupancy.download --session session1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
 
 Times are in Amsterdam local time, as the API expects.
 """
@@ -15,8 +14,8 @@ import argparse
 import json
 from datetime import datetime, timedelta
 
-from occupancy.api_client import ApiSource, format_time
-from occupancy.train import ROOT, load_config
+from .api_client import ApiSource, format_time
+from .train import ROOT, load_config
 
 MAX_CHUNK = timedelta(hours=24)        # the API does not accept more than 24 h per request
 ONE_MS = timedelta(milliseconds=1)

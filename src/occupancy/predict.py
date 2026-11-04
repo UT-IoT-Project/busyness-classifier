@@ -8,12 +8,12 @@ The window ends at the time of the last reading returned by the API, not at
 the laptop's clock: so it does not matter if the clocks of the laptop and the
 Raspberry Pi do not match.
 
-Run from the repository root (Windows PowerShell):
-    $env:PYTHONPATH = "src"
-    python -m occupancy.predict              with the real API
-    python -m occupancy.predict --simulate   with the simulated data (no API)
+Run from the repository root:
+    python src\\occupancy\\predict.py              with the real API
+    python src\\occupancy\\predict.py --simulate   with the simulated data (no API)
 """
 import argparse
+import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,12 +21,21 @@ from zoneinfo import ZoneInfo
 
 import joblib
 
-from occupancy.api_client import ApiSource, SimulatedSource, format_time
-from occupancy.cleaning import clean
-from occupancy.features import LABEL_COLUMN, build_windows
-from occupancy.integration import merge_all
-from occupancy.publish import publish_prediction
-from occupancy.train import ROOT, load_config
+if __package__:
+    from .api_client import ApiSource, SimulatedSource, format_time
+    from .cleaning import clean
+    from .features import LABEL_COLUMN, build_windows
+    from .integration import merge_all
+    from .publish import publish_prediction
+    from .train import ROOT, load_config
+else:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from occupancy.api_client import ApiSource, SimulatedSource, format_time
+    from occupancy.cleaning import clean
+    from occupancy.features import LABEL_COLUMN, build_windows
+    from occupancy.integration import merge_all
+    from occupancy.publish import publish_prediction
+    from occupancy.train import ROOT, load_config
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
