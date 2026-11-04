@@ -8,3 +8,4 @@ matplotlib
 jupyter
 pytest
 tzdata
+paho-mqtt>=2
