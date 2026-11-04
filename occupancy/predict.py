@@ -18,6 +18,7 @@ from occupancy.train import ROOT, load_config
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 RETRIEVAL_MINUTES = 10
+MAX_API_RANGE = timedelta(hours=12)
 LEVEL_NAMES = {0: "quiet", 1: "slightly busy", 2: "busy", 3: "very busy"}
 LEVEL_COLORS = {0: "32", 1: "33", 2: "35", 3: "31"}
 
@@ -34,20 +35,32 @@ def display_time(timestamp):
 
 def retrieve(source, start, end, config):
     """Retrieve and clean one inclusive time range."""
-    data = source.fetch(start, end)
-    if data is None:
+    data = {}
+    chunk_start = start
+    while chunk_start <= end:
+        chunk_end = min(chunk_start + MAX_API_RANGE, end)
+        chunk = source.fetch(chunk_start, chunk_end)
+        if chunk:
+            for sensor, readings in chunk.items():
+                data.setdefault(sensor, []).extend(readings)
+        chunk_start = chunk_end + timedelta(milliseconds=1)
+    if not data:
         return None
     tables, pir, labels = clean(data, config["cleaning"])
     return merge_all(tables, pir, labels)
 
 
-def classify(df, config, bundle):
+def classify(df, config, bundle, labelled_only=False):
     """Classify every valid one-minute slot and retain its label for checking."""
     windows = build_windows(
         df, config["windows"]["sensors"], config["windows"],
         config["cleaning"]["interval_seconds"],
         label_column=config["cleaning"]["label"]["sensor"],
     )
+    if windows.empty:
+        return []
+    if labelled_only and LABEL_COLUMN in windows:
+        windows = windows[windows[LABEL_COLUMN].notna()]
     if windows.empty:
         return []
 
@@ -107,27 +120,49 @@ def main():
     parser = argparse.ArgumentParser(description="Classify occupancy in ten one-minute slots")
     parser.add_argument("--simulate", action="store_true",
                         help="use the simulated data instead of the API")
+    parser.add_argument("--room", default=None,
+                        help="Designlab room to query (default: config.yaml)")
+    parser.add_argument("--start", help='historical start, "YYYY-MM-DD HH:MM"')
+    parser.add_argument("--end", help='historical end, "YYYY-MM-DD HH:MM"')
     args = parser.parse_args()
 
+    if (args.start is None) != (args.end is None):
+        parser.error("--start and --end must be supplied together")
+
     config = load_config()
+    if args.room is not None:
+        config["api"]["room"] = str(args.room)
     bundle = joblib.load(ROOT / config["model"]["path"])
 
     if args.simulate:
         source = SimulatedSource(ROOT / "data" / "simulated" / "readings.json")
         first, last = source.time_span()
-        start = first
-        end = min(start + timedelta(minutes=RETRIEVAL_MINUTES), last)
+        if args.start:
+            start = datetime.strptime(args.start, "%Y-%m-%d %H:%M")
+            end = datetime.strptime(args.end, "%Y-%m-%d %H:%M")
+            end = min(end, last)
+        else:
+            start = first
+            end = min(start + timedelta(minutes=RETRIEVAL_MINUTES), last)
     else:
         source = ApiSource(config)
-        end = datetime.now(AMSTERDAM).replace(tzinfo=None)
-        start = end - timedelta(minutes=RETRIEVAL_MINUTES)
+        if args.start:
+            start = datetime.strptime(args.start, "%Y-%m-%d %H:%M")
+            end = datetime.strptime(args.end, "%Y-%m-%d %H:%M")
+        else:
+            end = datetime.now(AMSTERDAM).replace(tzinfo=None)
+            start = end - timedelta(minutes=RETRIEVAL_MINUTES)
+        end = min(end, datetime.now(AMSTERDAM).replace(tzinfo=None))
+    if end <= start:
+        print(f"No existing readings between {format_time(start)} and {format_time(end)}.")
+        return
 
     df = retrieve(source, start, end, config)
     if df is None:
         print(f"No readings between {format_time(start)} and {format_time(end)}.")
         return
 
-    results = classify(df, config, bundle)
+    results = classify(df, config, bundle, labelled_only=bool(args.start))
     if not results:
         print(f"No complete one-minute slots between {format_time(start)} and {format_time(end)}.")
         return

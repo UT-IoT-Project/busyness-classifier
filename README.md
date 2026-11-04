@@ -185,10 +185,29 @@ address, building and room.
    python occupancy\train.py --days 30
    ```
 
-3. **Predict live** (one prediction every 30 s, saved to `data/predictions/predictions.csv`):
+3. **Predict live** (the latest 10 minutes, saved to `data/predictions/predictions.csv`):
 
 ```sh
 python src\occupancy\predict.py
+```
+
+To evaluate a historical labelled range, provide both times. The command
+retrieves the complete interval, creates one-minute predictions, and keeps
+only slots that contain `busy_level` for comparison:
+
+```sh
+python occupancy\predict.py --room 1 --start "2026-11-03 08:00" --end "2026-11-04 16:00"
+```
+
+Use `--room 2` for the other Designlab room. Live prediction never invents or
+shifts timestamps: future ranges are capped at the current time, and only
+readings actually returned by the API are classified.
+
+The simulated file contains its own historical timestamps, so use a range
+inside that data:
+
+```sh
+python occupancy\predict.py --simulate --start "2026-10-20 09:00" --end "2026-10-20 10:00"
 ```
 
 
@@ -199,4 +218,3 @@ python occupancy\train.py --api --rooms 1 2 --days 1
 
 python occupancy\train.py --api --regression --rooms 1 2 --days 1
 ```
-
