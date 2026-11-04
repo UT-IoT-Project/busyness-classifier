@@ -178,12 +178,6 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Before running the modules, tell Python where the code is (only lasts while
-the terminal is open):
-
-- PowerShell (VS Code's default terminal): `$env:PYTHONPATH = "src"`
-- Command Prompt (cmd): `set PYTHONPATH=src`
-
 Before using the API, fill in the `api` section of `config.yaml`: Raspberry Pi
 address, building and room.
 
@@ -194,24 +188,24 @@ address, building and room.
    four levels:
 
    ```sh
-   python -m occupancy.download --session session1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
+   python src\occupancy\download.py --session session1 --start "2026-11-03 10:00" --end "2026-11-03 12:30"
    ```
 
 2. **Train** with all sessions in `data/raw/` (the more, the better; with two or
    more, validation leaves one whole session out each time):
 
    ```sh
-   python -m occupancy.train
+   python src\occupancy\train.py
    ```
 
 3. **Predict live** (one prediction every 30 s, saved to `data/predictions/predictions.csv`):
 
    ```sh
-   python -m occupancy.predict
+   python src\occupancy\predict.py
    ```
 
-To test everything without the API: `python -m occupancy.train --simulated` and
-`python -m occupancy.predict --simulate`.
+To test everything without the API: `python src\occupancy\train.py --simulated` and
+`python src\occupancy\predict.py --simulate`.
 
 ## Open decisions
 
