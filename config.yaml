@@ -48,7 +48,7 @@ cleaning:
     pressure:      {min: 950, max: 1100}
     voc:           {min: 0,   max: .inf}
     iaq:           {min: 0,   max: 500}    # indoor air quality, 0 to 500
-    mic_vol:       {min: 0,   max: 1}
+    mic_vol:       {min: -100, max: 0}   # dBFS (real data: about -40 to -25)
     wifiPackets:   {min: 0,   max: 4294967295}
     bleAdverts:    {min: 0,   max: 4294967295}
 
@@ -62,7 +62,7 @@ cleaning:
     co2Equivalent: 100
     voc: 0.5
     iaq: 100
-    mic_vol: 0.3
+    mic_vol: 10            # dB
 
   # Step 1.4: gaps
   max_gap_readings: 3

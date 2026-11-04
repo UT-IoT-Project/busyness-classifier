@@ -68,10 +68,10 @@ Valores actuales:
 | Parametro | Valor |
 | --- | --- |
 | `interval_seconds` | 10 s |
-| `limits` | temperature -10 a 50, humidity 0 a 100, co2Equivalent 0 a 5000, pressure 950 a 1100, voc >= 0, iaq 0 a 500, mic_vol 0 a 1, wifiPackets y bleAdverts 0 a 4294967295 |
+| `limits` | temperature -10 a 50, humidity 0 a 100, co2Equivalent 0 a 5000, pressure 950 a 1100, voc >= 0, iaq 0 a 500, mic_vol -100 a 0 (dBFS), wifiPackets y bleAdverts 0 a 4294967295 |
 | `label` | busy_level, de 0 a 3 |
 | `spike_window_readings` | 5 lecturas |
-| `spike_thresholds` | temperature 1, humidity 2, pressure 3, co2Equivalent 100, voc 0,5, iaq 100, mic_vol 0,3 |
+| `spike_thresholds` | temperature 1, humidity 2, pressure 3, co2Equivalent 100, voc 0,5, iaq 100, mic_vol 10 (dB) |
 | `max_gap_readings` | 3 lecturas (30 s) |
 | `smoothing` | activado, 30 s, sobre mic_vol, co2Equivalent y voc |
 

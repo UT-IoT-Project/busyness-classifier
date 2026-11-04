@@ -43,7 +43,7 @@ def test_no_impossible_values_or_spikes_remain():
     assert tables["co2Equivalent"]["value"].min() >= 0
     assert tables["temperature"]["value"].max() <= 50
     assert tables["humidity"]["value"].max() <= 100
-    assert tables["mic_vol"]["value"].max() < 0.5
+    assert tables["mic_vol"]["value"].max() < -15   # the -5 dB spikes are gone
 
 
 def test_labels_are_levels_on_the_same_grid():
