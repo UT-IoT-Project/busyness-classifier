@@ -3,7 +3,7 @@
 api:
   base_url: "http://192.168.0.181:8080"   # Raspberry Pi
   building: "designlab"                 # to be filled in
-  room: "1"                          # to be filled in
+  room: "2"                          # to be filled in
 
 # Exact names from the API contract (case-sensitive).
 # Contract: platform/docs/api/openapi.yaml.
