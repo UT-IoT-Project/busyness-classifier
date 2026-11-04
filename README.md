@@ -32,8 +32,8 @@ API (Raspberry Pi) -> cleaning -> integration -> windows -> Random Forest -> CSV
 | `src/occupancy/cleaning.py` | Phase 1: duplicates, range, spikes, gaps and smoothing |
 | `src/occupancy/integration.py` | Phase 2: join sensors, PIRs and label into one table |
 | `src/occupancy/features.py` | Phase 4: 3-minute windows and their features |
-| `src/occupancy/train.py` | Train, validate leaving one session out, save the model |
-| `src/occupancy/predict.py` | Live prediction every 30 s |
+| `occupancy/train.py` | Retrieve, train and evaluate classification or regression |
+| `src/occupancy/predict.py` | Retrieve 10 minutes and classify ten 1-minute slots |
 | `src/occupancy/publish.py` | Save each prediction to the CSV |
 | `src/occupancy/simulate.py` | Generate simulated data to test without the API |
 | `notebooks/` | Step-by-step notebooks for each phase (01 cleaning ... 04 model, in Spanish) |
@@ -144,31 +144,18 @@ data; it says nothing about real data).
 | `fill_values` | Median of each feature, to fill empty values live |
 | `feature_min`, `feature_max` | Range seen in training, to flag values never seen |
 
-### Live prediction (`predict.py`)
+### Classification (`predict.py`)
 
-Every 30 s:
-
-1. **Get the data**: asks the API for the window plus 3 minutes of history
-   (`extra_history_minutes`) and a 10-minute margin (`clock_margin_minutes`) in
-   case the laptop and Raspberry Pi clocks differ. A 404 means no data.
-2. **Run the data through the phases**, with the same `config.yaml` as in
-   training.
-3. **Use the model** on the last window, which ends at the last reading
-   received (not at the laptop's time). If nothing new arrived since the
-   previous prediction, it skips.
-4. **Build the result** and append it to the CSV.
-
-A prediction is marked as unreliable (`reliable` = False) if the probability of
-the chosen level is below 0.6 (`min_confidence`), if a sensor is missing or if
-a feature is outside the range seen in training. If a request fails, the error
-is shown and the loop continues.
+One run retrieves an inclusive 10-minute interval, cleans the readings, and
+classifies ten one-minute slots. The `busy_level` label is kept separate from
+the sensor features and is shown as verification data when it is present.
+There are no clock margins, confidence thresholds, or repeated polling loops.
 
 ### Output (`publish.py`)
 
 Each prediction adds a row to `data/predictions/predictions.csv` with
-`timestamp`, `predicted_level`, `confidence`, `prob_0` to `prob_3`, `reliable`
-and `real_level` (the label, if it arrives). With `--simulate` it writes to
-`predictions_simulated.csv`.
+`timestamp`, `predicted_level`, and `real_level` (the label, if it arrives).
+With `--simulate` it writes to `predictions_simulated.csv`.
 
 ## Setup (Windows)
 
@@ -195,26 +182,21 @@ address, building and room.
    more, validation leaves one whole session out each time):
 
    ```sh
-   python src\occupancy\train.py
+   python occupancy\train.py --days 30
    ```
 
 3. **Predict live** (one prediction every 30 s, saved to `data/predictions/predictions.csv`):
 
-   ```sh
-   python src\occupancy\predict.py
-   ```
+```sh
+python src\occupancy\predict.py
+```
 
-To test everything without the API: `python src\occupancy\train.py --simulated` and
-`python src\occupancy\predict.py --simulate`.
 
-## Open decisions
+```sh
+python occupancy\train.py --api --rooms 1 2 --start "2026-10-01 00:00" --end "2026-11-04 00:00"
 
-- [ ] The firmware still sends `busynessLabel`; it must send `busy_level`. Until then there is no real labelled data.
-- [ ] Plan the collection sessions: at least two, each covering all four levels.
-- [ ] Real Raspberry Pi address, building and room in `config.yaml` (`api`).
-- [ ] Sensor units and datasheets, to set the range limits.
-- [ ] With plots of real data: grid interval, spike thresholds and smoothing window; compare the model with and without smoothing.
-- [ ] Window size (between 1 and 5 min; now 3).
-- [ ] Which features to remove based on their importance with real data.
-- [ ] Confirm with the professor the Thingy requirement (IMU, Bluetooth, on-device ML); the group decided not to use them.
-- [ ] Messages do not carry a node identifier.
+python occupancy\train.py --api --rooms 1 2 --days 1
+
+python occupancy\train.py --api --regression --rooms 1 2 --days 1
+```
+

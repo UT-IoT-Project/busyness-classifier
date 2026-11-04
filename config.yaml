@@ -1,9 +1,9 @@
 # Single configuration for training and inference.
 
 api:
-  base_url: "https://192.168.0.181:8080"  # to be filled in
+  base_url: "http://192.168.0.181:8080"  # to be filled in
   building: "designlab"                 # to be filled in
-  room: "1"                          # to be filled in
+  room: "2"                          # to be filled in
 
 # Exact names from the API contract (case-sensitive).
 # Contract: platform/docs/api/openapi.yaml.
@@ -21,8 +21,8 @@ sensors:
   - busy_level
 
 windows:
-  size_minutes: 3     # window of 1 to 5 minutes (to be decided)
-  step_seconds: 30    # how often a new window is computed
+  size_minutes: 1      # one classification slot
+  step_seconds: 60     # one slot per minute
   min_coverage: 0.8          # a sensor "has data" if it covers at least 80 % of the window
   min_sensor_fraction: 0.5   # window valid if at least half of the sensors have data
   # Sensors used to compute the features (always the same in training and
@@ -75,12 +75,6 @@ cleaning:
 
 model:
   path: "models/model.joblib"
-
-# Live prediction
-prediction:
-  extra_history_minutes: 3   # extra minutes requested before the window (for proper cleaning)
-  min_confidence: 0.6        # below this, the prediction is marked as unreliable
-  clock_margin_minutes: 10   # margin in case the laptop and Pi clocks do not match
 
 # Output: for now predictions are saved locally (group decision).
 output:

@@ -7,8 +7,7 @@ predictions are published via MQTT or the API, only this function changes.
 import csv
 from pathlib import Path
 
-FIELDS = ["timestamp", "predicted_level", "confidence",
-          "prob_0", "prob_1", "prob_2", "prob_3", "reliable", "real_level"]
+FIELDS = ["timestamp", "predicted_level", "real_level"]
 
 
 def publish_prediction(path, row):
