@@ -29,6 +29,9 @@ class ApiSource:
         self.url = f"{api['base_url'].rstrip('/')}/api/v1/readings/{api['building']}/{api['room']}"
         self.sensors = config["sensors"]
         self.timeout = timeout
+        # Last request and answer, so predict.py can show them on screen
+        self.last_request = None
+        self.last_status = None
 
     def fetch(self, start, end):
         """Return the 'data' field of the response, or None if there is no data (404)."""
@@ -37,7 +40,10 @@ class ApiSource:
                   "sensors": self.sensors}
         # doseq repeats the key for each sensor; quote encodes the space as %20
         query = urlencode(params, doseq=True, quote_via=quote)
+        self.last_request = f"GET {self.url}?{query}"
+        self.last_status = None
         response = requests.get(f"{self.url}?{query}", timeout=self.timeout)
+        self.last_status = f"HTTP {response.status_code}"
         if response.status_code == 404:
             return None
         body = response.json()
@@ -56,6 +62,8 @@ class SimulatedSource:
     def __init__(self, path):
         with open(path, encoding="utf-8") as f:
             self.data = json.load(f)["data"]
+        self.last_request = None
+        self.last_status = None
 
     def time_span(self):
         """First and last timestamp of the simulated data."""
@@ -64,6 +72,8 @@ class SimulatedSource:
         return min(stamps), max(stamps)
 
     def fetch(self, start, end):
+        self.last_request = f"(simulated) readings from {format_time(start)} to {format_time(end)}"
+        self.last_status = "simulated"
         result = {}
         for sensor, readings in self.data.items():
             result[sensor] = [r for r in readings

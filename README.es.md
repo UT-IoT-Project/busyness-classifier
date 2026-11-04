@@ -213,6 +213,13 @@ la Raspberry Pi, edificio y sala.
    python -m occupancy.predict
    ```
 
+   En cada paso muestra 1) la peticion que se hace a la API, 2) lo que responde
+   (codigo HTTP y, por sensor, numero de lecturas, primera y ultima hora y ultimo
+   valor) y 3) lo que entra al modelo (cada caracteristica junto al rango visto al
+   entrenar, marcando las que se salen), las probabilidades de cada nivel y el
+   resultado, con el motivo si no es fiable. Con `--quiet` solo se muestra una
+   linea por prediccion.
+
 Para probar todo sin la API: `python -m occupancy.train --simulated` y
 `python -m occupancy.predict --simulate`.
 

@@ -204,6 +204,13 @@ address, building and room.
    python src\occupancy\predict.py
    ```
 
+   At each step it shows 1) the request sent to the API, 2) what the API answers
+   (HTTP code and, per sensor, number of readings, first and last time and last
+   value) and 3) what goes into the model (each feature next to the range seen in
+   training, marking the ones outside it), the probability of each level and the
+   result, with the reason if it is unreliable. With `--quiet` it shows only one
+   line per prediction.
+
 To test everything without the API: `python src\occupancy\train.py --simulated` and
 `python src\occupancy\predict.py --simulate`.
 

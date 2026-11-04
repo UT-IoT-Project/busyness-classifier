@@ -40,13 +40,58 @@ else:
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 
-def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
+def show_request(source):
+    """Print what was asked to the API."""
+    print("  1. REQUEST TO THE API")
+    print("    ", source.last_request)
+
+
+def show_response(source, data):
+    """Print a summary of what the API answered: readings per sensor and the last value."""
+    print("  2. API RESPONSE:", source.last_status)
+    if data is None:
+        print("     no data in that range (404)")
+        return
+    print(f"     {'sensor':<15}{'readings':>9}  {'first':<12}{'last':<12}last value")
+    for sensor, readings in data.items():
+        if not readings:
+            print(f"     {sensor:<15}{0:>9}")
+            continue
+        last = readings[-1]
+        if "values" in last:            # the PIRs: one activity per PIR
+            value = ", ".join(f"PIR {p['ID']}={p['activity']}" for p in last["values"])
+        else:
+            value = last["value"]
+        print(f"     {sensor:<15}{len(readings):>9}  {readings[0]['timestamp'][11:19]:<12}"
+              f"{last['timestamp'][11:19]:<12}{value}")
+
+
+def show_model(window_end, X, bundle, classes, probabilities, row, reasons):
+    """Print what goes into the model and what comes out."""
+    print(f"  3. MODEL (window ending {format_time(window_end)})")
+    print(f"     input{'':<18}{'value':>10}   range seen in training")
+    for name, value in X.iloc[0].items():
+        low = bundle.get("feature_min", {}).get(name)
+        high = bundle.get("feature_max", {}).get(name)
+        rng = "" if low is None else f"[{low:.2f}, {high:.2f}]"
+        flag = "  <- outside" if low is not None and not low <= value <= high else ""
+        print(f"     {name:<23}{value:>10.2f}   {rng}{flag}")
+    print("     probabilities:", "  ".join(f"level {int(c)}: {p:.3f}"
+                                           for c, p in zip(classes, probabilities)))
+    print(f"     RESULT: level {row['predicted_level']}, confidence {row['confidence']}, "
+          f"{'reliable' if row['reliable'] else 'unreliable (' + '; '.join(reasons) + ')'}"
+          + (f", true level {row['real_level']}" if row["real_level"] != "" else ""))
+
+
+def predict_at(now, source, config, bundle, clock_margin, last_seen=None, show=False):
     """Prediction for the last window with data. Returns a row or None.
 
     Data is requested around 'now' with a margin in case the clocks do not
     match, and the window ends at the last reading received.
     If that reading is the same as in the previous prediction ('last_seen'),
     there is no new data and the prediction is not repeated.
+    With show=True it prints the request, the API response and the model
+    input and output.
     """
     pred_cfg = config["prediction"]
 
@@ -58,7 +103,13 @@ def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
     # More minutes than the window are requested: the cleaning needs earlier
     # data (smoothing, gaps) to handle the start of the window properly.
     history = timedelta(minutes=config["windows"]["size_minutes"] + pred_cfg["extra_history_minutes"])
-    data = source.fetch(now - history - clock_margin, now + clock_margin)
+    try:
+        data = source.fetch(now - history - clock_margin, now + clock_margin)
+    finally:
+        if show:                            # shown even if the request fails
+            show_request(source)
+    if show:
+        show_response(source, data)
     if data is None:
         print(format_time(now), "no data from the API")
         return None
@@ -104,11 +155,17 @@ def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
     # Unreliable prediction: the model is unsure, a sensor is missing, or some
     # value was never seen in training
     reliable = confidence >= pred_cfg["min_confidence"] and not missing
+    reasons = []                            # why it is unreliable (shown with show=True)
+    if confidence < pred_cfg["min_confidence"]:
+        reasons.append(f"confidence below {pred_cfg['min_confidence']}")
     if missing:
         print(format_time(now), "warning: no data for", ", ".join(missing))
+        reasons.append("no data for " + ", ".join(missing))
     if "feature_min" in bundle:
         outside = (X.iloc[0] < bundle["feature_min"]) | (X.iloc[0] > bundle["feature_max"])
         reliable = reliable and not outside.any()
+        if outside.any():
+            reasons.append("outside training range: " + ", ".join(X.columns[outside]))
 
     # ================================================================
     # 4. BUILD THE RESULT (main saves it to the CSV with publish_prediction)
@@ -121,6 +178,8 @@ def predict_at(now, source, config, bundle, clock_margin, last_seen=None):
            "real_level": "" if real_level is None or real_level != real_level else int(real_level)}
     for cls, p in zip(classes, probabilities):
         row[f"prob_{int(cls)}"] = round(float(p), 3)
+    if show:
+        show_model(windows.index[0], X, bundle, classes, probabilities, row, reasons)
     return row
 
 
@@ -130,7 +189,11 @@ def main():
                         help="use the simulated data instead of the API (no waiting between steps)")
     parser.add_argument("--steps", type=int, default=None,
                         help="number of predictions before stopping (default: run forever)")
+    parser.add_argument("--quiet", action="store_true",
+                        help="one line per prediction, without the request, the API "
+                             "response and the model input")
     args = parser.parse_args()
+    show = not args.quiet
 
     # ---------- Setup, once at start-up ----------
     config = load_config()
@@ -163,8 +226,10 @@ def main():
             break
 
         # Get data, run it through the phases and predict (all in predict_at)
+        if show:
+            print(f"\n===== {format_time(now)} " + "=" * 50)
         try:
-            row = predict_at(now, source, config, bundle, clock_margin, last_seen)
+            row = predict_at(now, source, config, bundle, clock_margin, last_seen, show)
         except Exception as error:          # the API can fail: warn and carry on
             print(format_time(now), "error:", error)
             row = None
@@ -173,10 +238,11 @@ def main():
         if row is not None:
             last_seen = row["window_end"]
             publish_prediction(output, row)
-            print(row["timestamp"], "level", row["predicted_level"],
-                  "confidence", row["confidence"],
-                  "" if row["reliable"] else "(unreliable)",
-                  f"true {row['real_level']}" if row["real_level"] != "" else "")
+            if not show:                    # with show, predict_at already printed it
+                print(row["timestamp"], "level", row["predicted_level"],
+                      "confidence", row["confidence"],
+                      "" if row["reliable"] else "(unreliable)",
+                      f"true {row['real_level']}" if row["real_level"] != "" else "")
 
         # Wait until the next prediction
         done += 1
