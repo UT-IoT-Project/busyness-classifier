@@ -20,6 +20,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import joblib
+import pandas as pd
 
 if __package__:
     from .api_client import ApiSource, SimulatedSource, format_time
@@ -42,28 +43,39 @@ AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 def show_request(source):
     """Print what was asked to the API."""
+    request = source.last_request
     print("  1. REQUEST TO THE API")
-    print("    ", source.last_request)
+    print("     endpoint:", request["endpoint"])
+    print("     from:    ", format_time(request["start"]))
+    print("     to:      ", format_time(request["end"]))
+    print("     sensors: ", ", ".join(request["sensors"]))
 
 
 def show_response(source, data):
-    """Print a summary of what the API answered: readings per sensor and the last value."""
+    """Print a summary of what the API answered, one column per sensor."""
     print("  2. API RESPONSE:", source.last_status)
     if data is None:
         print("     no data in that range (404)")
         return
-    print(f"     {'sensor':<15}{'readings':>9}  {'first':<12}{'last':<12}last value")
+    table = {}
     for sensor, readings in data.items():
         if not readings:
-            print(f"     {sensor:<15}{0:>9}")
+            table[sensor] = {"readings": 0, "first": "-", "last": "-", "last value": "-"}
             continue
         last = readings[-1]
-        if "values" in last:            # the PIRs: one activity per PIR
-            value = ", ".join(f"PIR {p['ID']}={p['activity']}" for p in last["values"])
+        if "values" in last:            # the PIRs: one activity per PIR, e.g. 30/20/50
+            value = "/".join(str(p["activity"]) for p in last["values"])
         else:
             value = last["value"]
-        print(f"     {sensor:<15}{len(readings):>9}  {readings[0]['timestamp'][11:19]:<12}"
-              f"{last['timestamp'][11:19]:<12}{value}")
+        table[sensor] = {"readings": len(readings),
+                         "first": readings[0]["timestamp"][11:19],
+                         "last": last["timestamp"][11:19],
+                         "last value": value}
+    # Same column order as the sensors in the request (the API sorts them alphabetically)
+    order = [s for s in source.last_request["sensors"] if s in table]
+    order += [s for s in table if s not in order]
+    text = pd.DataFrame(table)[order].to_string()
+    print("\n".join("     " + line for line in text.splitlines()))
 
 
 def show_model(window_end, X, bundle, classes, probabilities, row, reasons):

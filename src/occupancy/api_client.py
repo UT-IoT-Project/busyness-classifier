@@ -40,7 +40,8 @@ class ApiSource:
                   "sensors": self.sensors}
         # doseq repeats the key for each sensor; quote encodes the space as %20
         query = urlencode(params, doseq=True, quote_via=quote)
-        self.last_request = f"GET {self.url}?{query}"
+        self.last_request = {"endpoint": f"GET {self.url}", "start": start, "end": end,
+                             "sensors": self.sensors}
         self.last_status = None
         response = requests.get(f"{self.url}?{query}", timeout=self.timeout)
         self.last_status = f"HTTP {response.status_code}"
@@ -72,7 +73,8 @@ class SimulatedSource:
         return min(stamps), max(stamps)
 
     def fetch(self, start, end):
-        self.last_request = f"(simulated) readings from {format_time(start)} to {format_time(end)}"
+        self.last_request = {"endpoint": "(simulated) data/simulated/readings.json",
+                             "start": start, "end": end, "sensors": list(self.data)}
         self.last_status = "simulated"
         result = {}
         for sensor, readings in self.data.items():
