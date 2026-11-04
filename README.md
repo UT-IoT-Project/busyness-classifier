@@ -68,10 +68,10 @@ Current values:
 | Setting | Value |
 | --- | --- |
 | `interval_seconds` | 10 s |
-| `limits` | temperature -10 to 50, humidity 0 to 100, co2Equivalent 0 to 5000, pressure 950 to 1100, voc >= 0, iaq 0 to 500, mic_vol 0 to 1, wifiPackets and bleAdverts 0 to 4294967295 |
+| `limits` | temperature -10 to 50, humidity 0 to 100, co2Equivalent 0 to 5000, pressure 950 to 1100, voc >= 0, iaq 0 to 500, mic_vol -100 to 0 (dBFS), wifiPackets and bleAdverts 0 to 4294967295 |
 | `label` | busy_level, 0 to 3 |
 | `spike_window_readings` | 5 readings |
-| `spike_thresholds` | temperature 1, humidity 2, pressure 3, co2Equivalent 100, voc 0.5, iaq 100, mic_vol 0.3 |
+| `spike_thresholds` | temperature 1, humidity 2, pressure 3, co2Equivalent 100, voc 0.5, iaq 100, mic_vol 10 (dB) |
 | `max_gap_readings` | 3 readings (30 s) |
 | `smoothing` | enabled, 30 s, on mic_vol, co2Equivalent and voc |
 
@@ -203,6 +203,13 @@ address, building and room.
    ```sh
    python src\occupancy\predict.py
    ```
+
+   At each step it shows 1) the request sent to the API, 2) what the API answers
+   (HTTP code and, per sensor, number of readings, first and last time and last
+   value) and 3) what goes into the model (each feature next to the range seen in
+   training, marking the ones outside it), the probability of each level and the
+   result, with the reason if it is unreliable. With `--quiet` it shows only one
+   line per prediction.
 
 To test everything without the API: `python src\occupancy\train.py --simulated` and
 `python src\occupancy\predict.py --simulate`.

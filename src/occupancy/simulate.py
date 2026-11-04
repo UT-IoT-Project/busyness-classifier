@@ -111,7 +111,7 @@ def simulate_readings(start_time, minutes, interval_seconds, rng):
             "co2Equivalent": round(co2, 1),
             "voc": round(max(0.0, 0.3 + 0.03 * n + rng.gauss(0, 0.05)), 3),
             "iaq": round(min(500.0, max(0.0, 25 + 12 * n + rng.gauss(0, 8))), 1),
-            "mic_vol": round(min(1.0, max(0.0, 0.05 + 0.02 * n + rng.gauss(0, 0.03))), 3),
+            "mic_vol": round(min(0.0, max(-100.0, -45 + 1.0 * n + rng.gauss(0, 1.5))), 2),  # dBFS
             "wifiPackets": noisy_count(8 + 6 * n, rng),
             "bleAdverts": noisy_count(4 + 3 * n, rng),
             LABEL: busy_level_from_people(n),
@@ -157,7 +157,7 @@ def add_faults(messages, interval_seconds, rng):
 
     # 4. Isolated spikes in the microphone
     for index in rng.sample(range(1, len(messages) - 1), 4):
-        messages[index]["mic_vol"] = 1.0
+        messages[index]["mic_vol"] = -5.0
         faults.append({"type": "spike", "sensor": "mic_vol",
                        "timestamp": messages[index]["timestamp"]})
 
