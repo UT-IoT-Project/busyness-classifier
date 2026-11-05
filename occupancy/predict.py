@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import joblib
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -14,6 +15,7 @@ from occupancy.cleaning import clean
 from occupancy.features import LABEL_COLUMN, build_windows
 from occupancy.integration import merge_all
 from occupancy.publish import publish_prediction
+from occupancy.rnn import RecurrentRegressor
 from occupancy.train import ROOT, load_config
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
@@ -51,7 +53,7 @@ def retrieve(source, start, end, config):
 
 
 def classify(df, config, bundle, labelled_only=False):
-    """Classify every valid one-minute slot and retain its label for checking."""
+    """Run all three models and return their predictions per valid slot."""
     windows = build_windows(
         df, config["windows"]["sensors"], config["windows"],
         config["cleaning"]["interval_seconds"],
@@ -64,17 +66,52 @@ def classify(df, config, bundle, labelled_only=False):
     if windows.empty:
         return []
 
-    X = windows.reindex(columns=bundle["features"]).fillna(bundle["fill_values"])
+    predictions = {}
+    for name, model_bundle in bundle.items():
+        X = windows.reindex(columns=model_bundle["features"]).fillna(
+            model_bundle["fill_values"])
+        predictions[name] = np.asarray(model_bundle["model"].predict(X)).round().clip(0, 3).astype(int)
     results = []
-    for timestamp, level, row in zip(windows.index, bundle["model"].predict(X),
-                                     windows.itertuples()):
+    for index, timestamp in enumerate(windows.index):
+        levels = {name: int(values[index]) for name, values in predictions.items()}
+        voted_level = max(
+            levels.values(),
+            key=lambda level: (sum(value == level for value in levels.values()),
+                               levels["random_forest"] == level),
+        )
+        row = next(windows.iloc[[index]].itertuples())
         real_level = getattr(row, LABEL_COLUMN, None)
         results.append({
             "timestamp": format_time(timestamp),
-            "predicted_level": int(level),
+            "predicted_level": voted_level,
+            "random_forest_level": levels["random_forest"],
+            "regression_level": levels["regression"],
+            "rnn_level": levels["rnn"],
             "real_level": "" if real_level is None or real_level != real_level else int(real_level),
         })
     return results
+
+
+def patch_predictions(source, results):
+    """Patch consecutive slots with the same ensemble label."""
+    if not results:
+        return
+    current_level = results[0]["predicted_level"]
+    range_start = datetime.strptime(results[0]["timestamp"], "%Y-%m-%d %H:%M:%S.%f")
+    previous = range_start
+    for result in results[1:] + [{"predicted_level": None, "timestamp": None}]:
+        timestamp = (datetime.strptime(result["timestamp"], "%Y-%m-%d %H:%M:%S.%f")
+                     if result["timestamp"] else None)
+        if timestamp is not None and timestamp == previous + timedelta(minutes=1) and (
+                result["predicted_level"] == current_level):
+            previous = timestamp
+            continue
+        source.patch_prediction(
+            range_start, previous + timedelta(minutes=1), current_level)
+        if timestamp is not None:
+            range_start = timestamp
+            previous = timestamp
+            current_level = result["predicted_level"]
 
 
 def print_results(results, config, start, end, simulated):
@@ -124,6 +161,8 @@ def main():
                         help="Designlab room to query (default: config.yaml)")
     parser.add_argument("--start", help='historical start, "YYYY-MM-DD HH:MM"')
     parser.add_argument("--end", help='historical end, "YYYY-MM-DD HH:MM"')
+    parser.add_argument("--without-patch", action="store_true",
+                        help="save predictions without sending them to the API")
     args = parser.parse_args()
 
     if (args.start is None) != (args.end is None):
@@ -132,7 +171,12 @@ def main():
     config = load_config()
     if args.room is not None:
         config["api"]["room"] = str(args.room)
-    bundle = joblib.load(ROOT / config["model"]["path"])
+    model_paths = {
+        "random_forest": config["model"]["path"],
+        "regression": config["model"]["regression_path"],
+        "rnn": config["model"]["rnn_path"],
+    }
+    bundle = {name: joblib.load(ROOT / path) for name, path in model_paths.items()}
 
     if args.simulate:
         source = SimulatedSource(ROOT / "data" / "simulated" / "readings.json")
@@ -151,6 +195,7 @@ def main():
             end = datetime.strptime(args.end, "%Y-%m-%d %H:%M")
         else:
             end = datetime.now(AMSTERDAM).replace(tzinfo=None)
+            end -= timedelta(minutes=5, seconds=1)
             start = end - timedelta(minutes=RETRIEVAL_MINUTES)
         end = min(end, datetime.now(AMSTERDAM).replace(tzinfo=None))
     if end <= start:
@@ -172,6 +217,8 @@ def main():
         output = output.with_name("predictions_simulated.csv")
     for result in results:
         publish_prediction(output, result)
+    if not args.simulate and not args.without_patch:
+        patch_predictions(source, results)
     print_results(results, config, start, end, args.simulate)
 
 

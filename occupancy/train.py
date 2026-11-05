@@ -29,6 +29,7 @@ from occupancy.api_client import ApiSource, format_time
 from occupancy.cleaning import clean
 from occupancy.features import LABEL_COLUMN, build_windows
 from occupancy.integration import merge_all
+from occupancy.rnn import RecurrentRegressor
 
 ROOT = Path(__file__).resolve().parents[1]
 LEVELS = [0, 1, 2, 3]
@@ -289,6 +290,40 @@ def plot_temporal_evaluation(test, test_pred, regression, output):
     plt.close(figure)
 
 
+def evaluate_model(name, model, X_train, X_test, y_train, y_test, test,
+                   plot_directory):
+    """Train one model, save its evaluation plots, and return its predictions."""
+    labels = {
+        "random_forest": "Random Forest classifier",
+        "regression": "Random Forest regression",
+        "rnn": "RNN regression",
+    }
+    print(f"\n[{labels[name]}] training...")
+    model.fit(X_train, y_train)
+    train_pred = np.asarray(model.predict(X_train))
+    test_pred = np.asarray(model.predict(X_test))
+    is_classifier = name == "random_forest"
+    if is_classifier:
+        train_score = accuracy_score(y_train, train_pred)
+        test_score = accuracy_score(y_test, test_pred)
+        plot_classification_evaluation(
+            train_score, test_score, y_test, test_pred,
+            plot_directory / "random_forest_evaluation.png")
+    else:
+        train_score = r2_score(y_train, train_pred)
+        test_score = r2_score(y_test, test_pred)
+        plot_regression_evaluation(
+            train_score, test_score,
+            plot_directory / f"{name}_evaluation.png")
+    plot_temporal_evaluation(
+        test, test_pred, not is_classifier,
+        plot_directory / f"{name}_timeseries.png")
+    print(f"  test accuracy: {accuracy_score(y_test, np.rint(test_pred)):.3f}")
+    print(f"  test R2:       {r2_score(y_test, test_pred):.3f}")
+    print(f"  plots saved:   {name}_evaluation.png, {name}_timeseries.png")
+    return train_pred, test_pred
+
+
 def print_header(title):
     print("\n" + "=" * 68)
     print(f"  {title}")
@@ -309,8 +344,7 @@ def main():
                         help="days to scan when dates are omitted (default: 30)")
     parser.add_argument("--test-size", type=float, default=TEST_SIZE,
                         help="fraction held out chronologically (default: 0.2)")
-    parser.add_argument("--regression", action="store_true",
-                        help="train Random Forest regression on the 0-3 occupancy value")
+    parser.add_argument("--regression", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     if not args.simulated and (args.start is None) != (args.end is None):
@@ -355,42 +389,50 @@ def main():
     y_train = train[LABEL_COLUMN]
     y_test = test[LABEL_COLUMN]
     fill_values = X_train.median()
-    model = new_model(args.regression).fit(X_train.fillna(fill_values), y_train)
-    train_pred = model.predict(X_train.fillna(fill_values))
-    test_pred = model.predict(X_test.fillna(fill_values))
-
-    if args.regression:
-        train_score = r2_score(y_train, train_pred)
-        test_score = r2_score(y_test, test_pred)
-        model_path = ROOT / "models" / "regression_model.joblib"
-    else:
-        train_score = accuracy_score(y_train, train_pred)
-        test_score = accuracy_score(y_test, test_pred)
-        model_path = ROOT / config["model"]["path"]
-
     final_X = windows.drop(columns=[LABEL_COLUMN, "session"])
     final_fill_values = final_X.median()
-    final_model = new_model(args.regression).fit(
-        final_X.fillna(final_fill_values), windows[LABEL_COLUMN])
-    plot_path = ROOT / "data" / "plots" / ("regression_evaluation.png"
-                                           if args.regression else "classification_evaluation.png")
-    temporal_plot_path = ROOT / "data" / "plots" / (
-        "regression_timeseries.png" if args.regression else "classification_timeseries.png")
-    plot_path.parent.mkdir(parents=True, exist_ok=True)
-    if args.regression:
-        plot_regression_evaluation(train_score, test_score, plot_path)
-    else:
-        plot_classification_evaluation(train_score, test_score, y_test, test_pred, plot_path)
-    plot_temporal_evaluation(test, test_pred, args.regression, temporal_plot_path)
-    bundle = {"model": final_model, "features": list(final_X.columns),
-              "fill_values": final_fill_values, "feature_min": final_X.min(),
-              "feature_max": final_X.max(), "regression": args.regression}
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(bundle, model_path)
-    print(f"\n  Evaluation plots saved:")
-    print(f"    {plot_path}")
-    print(f"    {temporal_plot_path}")
-    print(f"  Model saved: {model_path}")
+    filled_train = X_train.fillna(fill_values)
+    filled_test = X_test.fillna(fill_values)
+
+    models = {
+        "random_forest": new_model(False),
+        "regression": new_model(True),
+        "rnn": RecurrentRegressor(),
+    }
+    plot_directory = ROOT / "data" / "plots"
+    plot_directory.mkdir(parents=True, exist_ok=True)
+    predictions = {}
+    for name, model in models.items():
+        predictions[name] = evaluate_model(
+            name, model, filled_train, filled_test, y_train, y_test,
+            test, plot_directory)
+
+    model_paths = {
+        "random_forest": ROOT / config["model"]["path"],
+        "regression": ROOT / config["model"]["regression_path"],
+        "rnn": ROOT / config["model"]["rnn_path"],
+    }
+    for name, model in models.items():
+        final_model = model.__class__(**{
+            key: value for key, value in (
+                {"n_estimators": 200, "random_state": 42,
+                 "class_weight": "balanced"} if name == "random_forest" else
+                {"n_estimators": 200, "random_state": 42} if name == "regression" else
+                {"hidden_size": model.hidden_size,
+                 "sequence_length": model.sequence_length,
+                 "epochs": model.epochs,
+                 "learning_rate": model.learning_rate,
+                 "random_state": model.random_state}
+            ).items() if not (name == "regression" and key == "class_weight")
+        }).fit(final_X.fillna(final_fill_values), windows[LABEL_COLUMN])
+        bundle = {"model": final_model, "features": list(final_X.columns),
+                  "fill_values": final_fill_values, "feature_min": final_X.min(),
+                  "feature_max": final_X.max(), "regression": name != "random_forest"}
+        model_paths[name].parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(bundle, model_paths[name])
+        print(f"  model saved: {model_paths[name]}")
+    print("\nDone. Trained 3/3 models.")
+    print(f"All plots are in: {plot_directory}")
 
 
 if __name__ == "__main__":

@@ -75,6 +75,8 @@ cleaning:
 
 model:
   path: "models/model.joblib"
+  regression_path: "models/regression_model.joblib"
+  rnn_path: "models/rnn_model.joblib"
 
 # Output: for now predictions are saved locally (group decision).
 output:

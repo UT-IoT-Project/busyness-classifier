@@ -21,17 +21,17 @@ predictions are saved locally in a CSV file.
 ## Pipeline
 
 ```
-API (Raspberry Pi) -> cleaning -> integration -> windows -> Random Forest -> CSV
+API (Raspberry Pi) -> cleaning -> integration -> windows -> Random Forest + regression + RNN -> CSV/API
 ```
 
 | Path | Content |
 | --- | --- |
 | `config.yaml` | All settings: API, sensors, cleaning, windows, prediction |
-| `src/occupancy/api_client.py` | Request readings from the real API or the simulated data |
-| `src/occupancy/download.py` | Download a real data session to `data/raw/` |
-| `src/occupancy/cleaning.py` | Phase 1: duplicates, range, spikes, gaps and smoothing |
-| `src/occupancy/integration.py` | Phase 2: join sensors, PIRs and label into one table |
-| `src/occupancy/features.py` | Phase 4: 3-minute windows and their features |
+| `occupancy/api_client.py` | Request readings from the real API or the simulated data |
+| `occupancy/download.py` | Download a real data session to `data/raw/` |
+| `occupancy/cleaning.py` | Phase 1: duplicates, range, spikes, gaps and smoothing |
+| `occupancy/integration.py` | Phase 2: join sensors, PIRs and label into one table |
+| `occupancy/features.py` | Phase 4: 3-minute windows and their features |
 | `occupancy/train.py` | Retrieve, train and evaluate classification or regression |
 | `src/occupancy/predict.py` | Retrieve 10 minutes and classify ten 1-minute slots |
 | `src/occupancy/publish.py` | Save each prediction to the CSV |
@@ -135,11 +135,22 @@ and precision/recall/F1 per level, and warns if a level is missing or a session
 does not cover all four levels. Simulated data: accuracy 0.98 (made-up, easy
 data; it says nothing about real data).
 
-`models/model.joblib` contains:
+Training writes three model bundles:
+
+* `models/model.joblib`: Random Forest classifier
+* `models/regression_model.joblib`: Random Forest regression model
+* `models/rnn_model.joblib`: recurrent neural-network regressor
+
+It also writes two evaluation plots per model in `data/plots/`:
+`random_forest_evaluation.png`, `random_forest_timeseries.png`,
+`regression_evaluation.png`, `regression_timeseries.png`,
+`rnn_evaluation.png`, and `rnn_timeseries.png`.
+
+Each bundle contains:
 
 | Key | Use |
 | --- | --- |
-| `model` | Random Forest trained on all data |
+| `model` | The model trained in that bundle |
 | `features` | Names and order of the feature columns |
 | `fill_values` | Median of each feature, to fill empty values live |
 | `feature_min`, `feature_max` | Range seen in training, to flag values never seen |
@@ -208,6 +219,9 @@ inside that data:
 
 ```sh
 python occupancy\predict.py --simulate --start "2026-10-20 09:00" --end "2026-10-20 10:00"
+
+python occupancy\train.py --api --rooms 1 2 --days 2
+
 ```
 
 
@@ -216,5 +230,5 @@ python occupancy\train.py --api --rooms 1 2 --start "2026-10-01 00:00" --end "20
 
 python occupancy\train.py --api --rooms 1 2 --days 1
 
-python occupancy\train.py --api --regression --rooms 1 2 --days 1
+python occupancy\train.py --api --rooms 1 2 --days 2
 ```

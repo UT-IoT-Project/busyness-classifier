@@ -1,13 +1,16 @@
 """Save the prediction.
 
-For now it is saved locally (group decision): one row is appended to a CSV
-file whose path is in config.yaml (output.predictions_path). If later the
-predictions are published via MQTT or the API, only this function changes.
+One row is appended to a CSV file whose path is in config.yaml
+(output.predictions_path). Live predictions are also sent to the API by
+predict.py.
 """
 import csv
 from pathlib import Path
 
-FIELDS = ["timestamp", "predicted_level", "real_level"]
+FIELDS = [
+    "timestamp", "predicted_level", "random_forest_level",
+    "regression_level", "rnn_level", "real_level",
+]
 
 
 def publish_prediction(path, row):

@@ -45,6 +45,27 @@ class ApiSource:
             raise RuntimeError(f"The API answered {response.status_code}: {body.get('message')}")
         return body["data"]
 
+    def patch_prediction(self, start, end, level):
+        """Apply one predicted level to all matching room readings."""
+        body = {
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+            "busy_level": int(level),
+        }
+        response = requests.patch(self.url, json=body, timeout=self.timeout)
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise RuntimeError(
+                f"The prediction API returned invalid JSON ({response.status_code})"
+            ) from exc
+        if response.status_code != 200:
+            message = payload.get("message", "unknown error")
+            raise RuntimeError(
+                f"The prediction API answered {response.status_code}: {message}"
+            )
+        return payload["data"]
+
 
 class SimulatedSource:
     """Reads data/simulated/readings.json as if it were the API.
